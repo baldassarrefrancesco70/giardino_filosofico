@@ -24,7 +24,14 @@
 
 const SUPABASE_URL = "https://qybeutztcvasdxkgqfss.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5YmV1dHp0Y3Zhc2R4a2dxZnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDA0NTcsImV4cCI6MjA5NDQ3NjQ1N30.D7IYrie19sC-CLg_D3vlPJnntWF0MIrKZcyBIb_yKAE";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    flowType: "pkce",
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
 
 const DOCENTE_DOMAIN = "docente@convittogbvico.edu.it";
 const CLASSI = ["3A", "3D", "4D"];
@@ -109,6 +116,12 @@ function LoginPage() {
       options: {
         redirectTo: "https://baldassarrefrancesco70.github.io/giardino_filosofico/",
         hd: "convittogbvico.edu.it",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+        skipBrowserRedirect: false,
+        flowType: "pkce",
       }
     });
     if (error) { setError(error.message); setLoading(false); }
