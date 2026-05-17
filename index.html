@@ -393,9 +393,10 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
   };
 
   const saveNote = async note => {
-    const { data, error } = note.created_at
-      ? await supabase.from("notes").update({title:note.title,author:note.author,status:note.status,text:note.text,links:note.links,public_token:note.public_token,updated_at:today()}).eq("id",note.id).select().single()
-      : await supabase.from("notes").insert({...note,student_email:user.email}).select().single();
+    const isNew = !notes.some(n => n.id === note.id);
+    const { data, error } = isNew
+      ? await supabase.from("notes").insert({...note, student_email:user.email}).select().single()
+      : await supabase.from("notes").update({title:note.title,author:note.author,status:note.status,text:note.text,links:note.links,public_token:note.public_token,updated_at:today()}).eq("id",note.id).select().single();
     if (!error && data) setNotes(ns=>ns.some(n=>n.id===data.id)?ns.map(n=>n.id===data.id?data:n):[...ns,data]);
     setPanel(null);
   };
