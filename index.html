@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 90%; }
+    html { font-size: 87.5%; }
     body { font-family: system-ui, sans-serif; background: #f4f9f5; }
     input, textarea, button { font-family: inherit; }
   </style>
@@ -182,7 +182,6 @@ function Graph({ notes, selectedId, onSelect }) {
           <g key={n.id} transform={`translate(${p.x},${p.y})`} style={{cursor:"grab"}} onMouseDown={e=>onMD(e,n.id)} onClick={()=>onSelect(n)}>
             {sel&&<circle r={nr+6} fill={s.color} fillOpacity={0.15}/>}
             <circle r={nr} fill={s.color} fillOpacity={sel?1:0.82} stroke={sel?s.dark:s.color} strokeWidth={sel?2.5:1.5} filter={sel?"url(#glow)":undefined}/>
-            {n.public_token&&<circle r={nr+9} fill="none" stroke="#6d5acd" strokeWidth={1} strokeDasharray="3 2" strokeOpacity={0.7}/>}
             <text textAnchor="middle" dy="0.38em" fontSize={sel?17:14} pointerEvents="none">{s.emoji}</text>
             <text textAnchor="middle" dy={nr+13} fontSize={8.5} fill="#2a4a32" fontWeight={sel?700:500} fontFamily="Georgia,serif" pointerEvents="none">{n.title.length>22?n.title.slice(0,20)+"…":n.title}</text>
           </g>
@@ -276,7 +275,7 @@ function NoteEditor({ note, allNotes, onSave, onDelete, onClose }) {
 // DETTAGLIO NOTA
 // ═══════════════════════════════════════════════════════════════
 
-function NoteDetail({ note, allNotes, noteFeedback, onEdit, onClose, onToggleShare }) {
+function NoteDetail({ note, allNotes, noteFeedback, onEdit, onClose, onExportNote }) {
   const linked  = allNotes.filter(n=>(note.links||[]).includes(n.id));
   const linkedBy = allNotes.filter(n=>(n.links||[]).includes(note.id)&&!(note.links||[]).includes(n.id));
   const feedback = noteFeedback.find(f=>f.note_id===note.id&&f.published);
@@ -307,22 +306,12 @@ function NoteDetail({ note, allNotes, noteFeedback, onEdit, onClose, onToggleSha
           <div style={{fontSize:12,lineHeight:1.7,color:"#1a2e40",fontFamily:"Georgia,serif"}}>{feedback.text}</div>
         </div>
       )}
-      <div style={{background:"#faf8ff",border:"1.5px solid #c8bef0",borderRadius:9,padding:"11px 13px"}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#5a4aaa",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔗 Condivisione nota</div>
-        {note.public_token?(
-          <div style={G.col({gap:7})}>
-            <CopyLink url={`${window.location.origin}/note/${note.public_token}`}/>
-            <Btn onClick={()=>onToggleShare(note)} variant="unshare" style={{fontSize:11,padding:"4px 12px"}}>Revoca link</Btn>
-          </div>
-        ):(
-          <div style={G.col({gap:5})}>
-            <div style={{fontSize:11,color:"#7a6ab0",fontFamily:"Georgia,serif"}}>Questa nota è privata.</div>
-            <Btn onClick={()=>onToggleShare(note)} variant="share" style={{fontSize:11,padding:"4px 12px"}}>Genera link pubblico</Btn>
-          </div>
-        )}
-      </div>
       <div style={{fontSize:10,color:"#a0b0a8",fontFamily:"Georgia,serif"}}>Creata: {fmtDate(note.created_at)} · Aggiornata: {fmtDate(note.updated_at)}</div>
-      <Btn onClick={()=>onEdit(note)} variant="outline">✏︎ Modifica questa nota</Btn>
+      <div style={G.row({gap:8})}>
+        <Btn onClick={()=>onExportNote(note,"pdf")} variant="outline" style={{flex:1}}>📄 PDF</Btn>
+        <Btn onClick={()=>onExportNote(note,"md")} variant="outline" style={{flex:1}}>📝 Testo</Btn>
+        <Btn onClick={()=>onEdit(note)} variant="primary" style={{flex:1}}>✏︎ Modifica</Btn>
+      </div>
     </div>
   );
 }
@@ -424,8 +413,59 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
   const filtered = filter==="all" ? notes : notes.filter(n=>n.status===filter);
   const publishedGF = gardenFeedback.filter(f=>f.published);
 
-  const doExport = onlyPiante => {
-    const exp = onlyPiante ? notes.filter(n=>n.status==="pianta") : notes;
+  const exportNote = (note, format) => {
+    if (format === "md") { exportNoteMd(note); return; }
+    const w = window.open("","_blank"); if(!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${note.title}</title><style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}h1{color:#0d3d25;font-size:22px;margin:0 0 6px}.ref{color:#778a7f;font-size:13px;font-style:italic;margin-bottom:10px}.badge{display:inline-block;padding:3px 12px;border-radius:99px;font-size:12px;font-weight:700;margin-bottom:16px}.seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}.germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}.pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}.text{font-size:15px;line-height:1.85;padding:16px 18px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}.meta{color:#aaa;font-size:11px;margin-top:20px}</style></head><body><h1>${note.title}</h1>${note.author?`<div class="ref">${note.author}</div>`:""}<span class="badge ${note.status}">${STATUS[note.status].emoji} ${STATUS[note.status].label}</span><div class="text">${note.text||"<em style='color:#aaa'>Nessun testo</em>"}</div><div class="meta">Creata: ${fmtDate(note.created_at)} · Aggiornata: ${fmtDate(note.updated_at)}</div></body></html>`);
+    w.document.close(); w.print();
+  };
+
+  const exportNoteMd = note => {
+    const md = [
+      `# ${note.title}`,
+      note.author ? `*${note.author}*` : "",
+      `**Stato:** ${STATUS[note.status].emoji} ${STATUS[note.status].label}`,
+      "",
+      note.text || "",
+      "",
+      `---`,
+      `*Creata: ${fmtDate(note.created_at)} · Aggiornata: ${fmtDate(note.updated_at)}*`,
+    ].filter((l,i,a) => !(l==="" && a[i-1]==="")).join("\n");
+    const blob = new Blob([md], {type:"text/markdown"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${note.title.replace(/[^a-zA-Z0-9\s]/g,"").trim().replace(/\s+/g,"-").toLowerCase()}.md`;
+    a.click();
+  };
+
+  const doExport = () => {
+    const w = window.open("","_blank"); if(!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Giardino Filosofico — ${profile.display_name}</title><style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}h1{color:#1e6b45;border-bottom:2px solid #c8e6d0;padding-bottom:10px}.meta{color:#778a7f;font-size:13px;margin-bottom:32px}h2{color:#0d3d25;font-size:17px;margin:28px 0 4px}.ref{color:#778a7f;font-size:12px;font-style:italic;margin-bottom:8px}.badge{display:inline-block;padding:2px 11px;border-radius:99px;font-size:11px;font-weight:700;margin-bottom:10px}.seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}.germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}.pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}.text{font-size:14px;line-height:1.8;padding:10px 14px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}hr{border:none;border-top:1px solid #d8ead0;margin:28px 0}</style></head><body><h1>🌿 Giardino Filosofico</h1><div class="meta"><strong>${profile.display_name}</strong> · Classe ${profile.classe}<br>Esportato il ${new Date().toLocaleDateString("it-IT")}</div>${notes.map(n=>`<h2>${n.title}</h2>${n.author?`<div class="ref">${n.author}</div>`:""}<span class="badge ${n.status}">${STATUS[n.status].emoji} ${STATUS[n.status].label}</span><div class="text">${n.text||"<em style='color:#aaa'>Nessun testo</em>"}</div><hr>`).join("")}</body></html>`);
+    w.document.close(); w.print();
+  };
+
+  const doExportMd = () => {
+    const md = [
+      `# 🌿 Giardino Filosofico — ${profile.display_name}`,
+      `*Classe ${profile.classe} · Esportato il ${new Date().toLocaleDateString("it-IT")}*`,
+      "",
+      ...notes.flatMap(n => [
+        `## ${n.title}`,
+        n.author ? `*${n.author}*` : "",
+        `**Stato:** ${STATUS[n.status].emoji} ${STATUS[n.status].label}`,
+        "",
+        n.text || "*Nessun testo*",
+        "",
+        "---",
+        "",
+      ]),
+    ].join("\n");
+    const blob = new Blob([md], {type:"text/markdown"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `giardino-${profile.display_name.replace(/\s+/g,"-").toLowerCase()}.md`;
+    a.click();
+  };
     const w = window.open("","_blank"); if(!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Giardino Filosofico — ${profile.display_name}</title><style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}h1{color:#1e6b45;border-bottom:2px solid #c8e6d0;padding-bottom:10px}.meta{color:#778a7f;font-size:13px;margin-bottom:32px}h2{color:#0d3d25;font-size:17px;margin:28px 0 4px}.ref{color:#778a7f;font-size:12px;font-style:italic;margin-bottom:8px}.badge{display:inline-block;padding:2px 11px;border-radius:99px;font-size:11px;font-weight:700;margin-bottom:10px}.seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}.germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}.pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}.text{font-size:14px;line-height:1.8;padding:10px 14px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}hr{border:none;border-top:1px solid #d8ead0;margin:28px 0}</style></head><body><h1>🌿 Giardino Filosofico</h1><div class="meta"><strong>${profile.display_name}</strong> · Classe ${profile.classe}<br>Esportato il ${new Date().toLocaleDateString("it-IT")}${onlyPiante?" · Solo note mature (🌳 Piante)":""}</div>${exp.map(n=>`<h2>${n.title}</h2>${n.author?`<div class="ref">${n.author}</div>`:""}<span class="badge ${n.status}">${STATUS[n.status].emoji} ${STATUS[n.status].label}</span><div class="text">${n.text||"<em style='color:#aaa'>Nessun testo</em>"}</div><hr>`).join("")}</body></html>`);
     w.document.close(); w.print();
@@ -442,9 +482,9 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
         </div>
         <div style={G.row({gap:7,flexWrap:"wrap"})}>
           <div style={{display:"flex",alignItems:"center",border:"1.5px solid #1e6b45",borderRadius:7,overflow:"hidden"}}>
-            <span style={{padding:"5px 8px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0",whiteSpace:"nowrap"}}>📄 Esporta</span>
-            <button onClick={()=>doExport(false)} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0"}}>Tutto</button>
-            <button onClick={()=>doExport(true)}  style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45"}}>🌳 Piante</button>
+            <span style={{padding:"5px 8px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0",whiteSpace:"nowrap"}}>Esporta</span>
+            <button onClick={doExport} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0"}}>📄 PDF</button>
+            <button onClick={doExportMd} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45"}}>📝 Testo</button>
           </div>
           <Btn onClick={()=>setPanel({mode:"settings"})} variant="outline" style={{fontSize:11}}>⚙ Giardino</Btn>
           <Btn onClick={()=>setPanel({mode:"edit",note:{}})}>+ Nuova nota</Btn>
@@ -487,7 +527,6 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
                             <div style={{flex:1,minWidth:0}}>
                               <div style={G.row({alignItems:"center",gap:6,marginBottom:2})}>
                                 <div style={{fontWeight:700,fontSize:13,color:"#0d3d25",fontFamily:"Georgia,serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{n.title}</div>
-                                {n.public_token&&<span style={{fontSize:9,color:"#6d5acd",flexShrink:0}} title="Nota condivisa">🔗</span>}
                                 {hasFB&&<span style={{fontSize:9,color:"#1a5276",flexShrink:0}} title="Feedback docente disponibile">💬</span>}
                               </div>
                               {n.author&&<div style={{fontSize:11,color:"#90a89a",marginBottom:4,fontStyle:"italic"}}>{n.author}</div>}
@@ -513,7 +552,7 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
 
         {panel&&(
           <div style={{width:370,background:"white",borderLeft:"1.5px solid #d2eadb",padding:20,overflowY:"auto",flexShrink:0}}>
-            {panel.mode==="detail"   && <NoteDetail note={panel.note} allNotes={notes} noteFeedback={noteFeedback} onEdit={n=>setPanel({mode:"edit",note:n})} onClose={()=>{setPanel(null);setSel(null);}} onToggleShare={toggleNoteShare}/>}
+            {panel.mode==="detail"   && <NoteDetail note={panel.note} allNotes={notes} noteFeedback={noteFeedback} onEdit={n=>setPanel({mode:"edit",note:n})} onClose={()=>{setPanel(null);setSel(null);}} onExportNote={exportNote}/>}
             {panel.mode==="edit"     && <NoteEditor note={panel.note} allNotes={notes} onSave={saveNote} onDelete={deleteNote} onClose={()=>setPanel(null)}/>}
             {panel.mode==="settings" && <GardenSettings profile={profile} onToggleGardenShare={toggleGardenShare} onClose={()=>setPanel(null)}/>}
           </div>
