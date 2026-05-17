@@ -787,41 +787,122 @@ function TeacherView({ user, onSignOut }) {
 // APP ROOT
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// FORM BENVENUTO (primo accesso studente)
+// ═══════════════════════════════════════════════════════════════
+
+function WelcomeForm({ user, onComplete }) {
+  const suggestedName = user.user_metadata?.full_name || user.email.split("@")[0].replace(".", " ");
+  const [name, setName] = React.useState(suggestedName);
+  const [classe, setClasse] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState("");
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setErr("Inserisci il tuo nome."); return; }
+    if (!classe) { setErr("Seleziona la tua classe."); return; }
+    setSaving(true);
+    const { data, error } = await supabase.from("student_profiles").insert({
+      email: user.email,
+      display_name: name.trim(),
+      classe,
+    }).select().single();
+    if (error) { setErr("Errore nel salvataggio. Riprova."); setSaving(false); return; }
+    onComplete(data);
+  };
+
+  const inp = { border:"1.5px solid #ccddd4", borderRadius:7, padding:"9px 12px", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box", fontFamily:"Georgia,serif", background:"#fafdfb" };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f4f9f5",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{background:"white",borderRadius:16,padding:"44px 40px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)",maxWidth:420,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:48,marginBottom:12}}>🌱</div>
+          <h1 style={{fontFamily:"Georgia,serif",color:"#0d3d25",fontSize:22,margin:"0 0 8px"}}>Benvenuto nel Giardino</h1>
+          <p style={{color:"#778a7f",fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.6,margin:0}}>
+            Prima di iniziare, dimmi come ti chiami e in quale classe sei.
+          </p>
+        </div>
+
+        {err && <div style={{background:"#fff0f0",color:"#b00",padding:"8px 12px",borderRadius:7,fontSize:12,marginBottom:16,border:"1px solid #f0b0b0"}}>{err}</div>}
+
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Nome e cognome</label>
+            <input value={name} onChange={e=>setName(e.target.value)} style={inp} placeholder="Es. Marco Rossi"/>
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Classe</label>
+            <div style={{display:"flex",gap:8}}>
+              {CLASSI.map(cl=>{
+                const colors = {"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"};
+                const c = colors[cl];
+                const sel = classe===cl;
+                return (
+                  <button key={cl} onClick={()=>setClasse(cl)} style={{
+                    flex:1, cursor:"pointer", border:`1.5px solid ${c}`, borderRadius:8,
+                    padding:"10px 0", fontSize:14, fontWeight:700, fontFamily:"Georgia,serif",
+                    background: sel?c:"white", color: sel?"white":c, transition:"all 0.15s"
+                  }}>{cl}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button onClick={handleSubmit} disabled={saving} style={{
+            cursor:saving?"not-allowed":"pointer", background:"#1e6b45", color:"white",
+            border:"none", borderRadius:8, padding:"12px 0", fontSize:14, fontWeight:700,
+            fontFamily:"Georgia,serif", marginTop:8, opacity:saving?0.7:1
+          }}>
+            {saving ? "Salvataggio…" : "Entra nel giardino 🌿"}
+          </button>
+        </div>
+
+        <p style={{fontSize:10,color:"#b0c0b8",marginTop:16,textAlign:"center",fontFamily:"Georgia,serif"}}>
+          {user.email}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [session,setSession] = React.useState(null);
   const [profile,setProfile] = React.useState(null);
+  const [needsSetup,setNeedsSetup] = React.useState(false);
   const [loading,setLoading] = React.useState(true);
 
   React.useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       setSession(session);
-      if(session) loadOrCreateProfile(session.user);
+      if(session) loadProfile(session.user);
       else setLoading(false);
     });
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{
       setSession(session);
-      if(session) loadOrCreateProfile(session.user);
-      else { setProfile(null); setLoading(false); }
+      if(session) loadProfile(session.user);
+      else { setProfile(null); setNeedsSetup(false); setLoading(false); }
     });
     return ()=>subscription.unsubscribe();
   },[]);
 
-  const loadOrCreateProfile = async user => {
+  const loadProfile = async user => {
     setLoading(true);
-    let { data } = await supabase.from("student_profiles").select("*").eq("email",user.email).single();
-    if (!data && !isDocente(user.email)) {
-      // Crea profilo studente al primo accesso
-      const nameParts = (user.user_metadata?.full_name||user.email.split("@")[0]).split(" ");
-      const classe = "3A"; // default — lo studente può aggiornarlo
-      const { data: created } = await supabase.from("student_profiles").insert({
-        email: user.email,
-        display_name: user.user_metadata?.full_name || user.email.split(".")[0],
-        classe,
-      }).select().single();
-      data = created;
+    if (isDocente(user.email)) { setLoading(false); return; }
+    const { data } = await supabase.from("student_profiles").select("*").eq("email",user.email).single();
+    if (data) {
+      setProfile(data);
+      setNeedsSetup(false);
+    } else {
+      setNeedsSetup(true);
     }
-    setProfile(data);
     setLoading(false);
+  };
+
+  const handleWelcomeComplete = (profileData) => {
+    setProfile(profileData);
+    setNeedsSetup(false);
   };
 
   const signOut = async () => { await supabase.auth.signOut(); };
@@ -837,6 +918,7 @@ function App() {
 
   const user = session.user;
   if (isDocente(user.email)) return <TeacherView user={user} onSignOut={signOut}/>;
+  if (needsSetup) return <WelcomeForm user={user} onComplete={handleWelcomeComplete}/>;
   if (profile) return <StudentView user={user} profile={profile} onSignOut={signOut}/>;
 
   return <div style={{padding:40,fontFamily:"Georgia,serif",color:"#c00"}}>Errore nel caricamento del profilo. Ricarica la pagina.</div>;
