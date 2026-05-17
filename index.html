@@ -503,10 +503,6 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
     a.download = "giardino-" + profile.display_name.replace(/\s+/g,"-").toLowerCase() + ".md";
     a.click();
   };
-    const w = window.open("","_blank"); if(!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Giardino Filosofico — ${profile.display_name}</title><style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}h1{color:#1e6b45;border-bottom:2px solid #c8e6d0;padding-bottom:10px}.meta{color:#778a7f;font-size:13px;margin-bottom:32px}h2{color:#0d3d25;font-size:17px;margin:28px 0 4px}.ref{color:#778a7f;font-size:12px;font-style:italic;margin-bottom:8px}.badge{display:inline-block;padding:2px 11px;border-radius:99px;font-size:11px;font-weight:700;margin-bottom:10px}.seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}.germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}.pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}.text{font-size:14px;line-height:1.8;padding:10px 14px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}hr{border:none;border-top:1px solid #d8ead0;margin:28px 0}</style></head><body><h1>🌿 Giardino Filosofico</h1><div class="meta"><strong>${profile.display_name}</strong> · Classe ${profile.classe}<br>Esportato il ${new Date().toLocaleDateString("it-IT")}${onlyPiante?" · Solo note mature (🌳 Piante)":""}</div>${exp.map(n=>`<h2>${n.title}</h2>${n.author?`<div class="ref">${n.author}</div>`:""}<span class="badge ${n.status}">${STATUS[n.status].emoji} ${STATUS[n.status].label}</span><div class="text">${n.text||"<em style='color:#aaa'>Nessun testo</em>"}</div><hr>`).join("")}</body></html>`);
-    w.document.close(); w.print();
-  };
 
   if (loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}><Spinner/> Caricamento giardino…</div>;
 
