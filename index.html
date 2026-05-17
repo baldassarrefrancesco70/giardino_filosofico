@@ -343,7 +343,7 @@ function GardenSettings({ profile, onToggleGardenShare, onClose }) {
         <div style={{fontSize:12,color:"#5a4a80",lineHeight:1.6,fontFamily:"Georgia,serif",marginBottom:10}}>Chi ha il link può vedere tutte le tue note in sola lettura, senza bisogno di account.</div>
         {profile.garden_public_token?(
           <div style={G.col({gap:7})}>
-            <CopyLink url={`${window.location.origin}/garden/${profile.garden_public_token}`}/>
+            <CopyLink url={`https://baldassarrefrancesco70.github.io/giardino_filosofico/public/?token=${profile.garden_public_token}`}/>
             <Btn onClick={onToggleGardenShare} variant="unshare" style={{fontSize:11}}>Revoca link giardino</Btn>
           </div>
         ):(
