@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giardino Filosofico</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 90%; }
+    body { font-family: system-ui, sans-serif; background: #f4f9f5; }
+    input, textarea, button { font-family: inherit; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPABASE_URL = "https://qybeutztcvasdxkgqfss.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5YmV1dHp0Y3Zhc2R4a2dxZnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDA0NTcsImV4cCI6MjA5NDQ3NjQ1N30.D7IYrie19sC-CLg_D3vlPJnntWF0MIrKZcyBIb_yKAE";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+});
+
+const DOCENTE_DOMAIN = "docente@convittogbvico.edu.it";
+const CLASSI = ["3A", "3D", "4D"];
+
+const STATUS = {
+  seme:      { emoji: "🌱", color: "#6db87a", dark: "#3a7a4a", bg: "#f0faf2", label: "Seme" },
+  germoglio: { emoji: "🌿", color: "#3a9e6f", dark: "#1f6644", bg: "#e6f5ed", label: "Germoglio" },
+  pianta:    { emoji: "🌳", color: "#1e6b45", dark: "#0d3d25", bg: "#d2eadb", label: "Pianta" },
+};
+const S_ORDER = ["seme", "germoglio", "pianta"];
+
+const genId    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const genToken = () => "tok_" + Math.random().toString(36).slice(2,10);
+const fmtDate  = iso => iso ? new Date(iso).toLocaleDateString("it-IT", {day:"2-digit", month:"short", year:"numeric"}) : "";
+const today    = () => new Date().toISOString().slice(0,10);
+const isDocente = email => email && email.includes(DOCENTE_DOMAIN);
+const G = {
+  col: (v={}) => ({ display:"flex", flexDirection:"column", ...v }),
+  row: (v={}) => ({ display:"flex", flexDirection:"row", ...v }),
+};
+
+function Badge({ status, lg }) {
+  const s = STATUS[status];
+  return React.createElement("span", {
+    style: { background:s.bg, color:s.dark, border:"1.5px solid "+s.color, borderRadius:99,
+      padding:lg?"4px 13px":"2px 9px", fontSize:lg?12:10, fontWeight:700, whiteSpace:"nowrap",
+      letterSpacing:0.3, fontFamily:"Georgia,serif" }
+  }, s.emoji + " " + s.label);
+}
+
+function Btn({ onClick, variant="primary", children, style={}, disabled=false }) {
+  const base = { cursor:disabled?"not-allowed":"pointer", borderRadius:7, padding:"6px 15px",
+    fontSize:12, fontWeight:700, fontFamily:"Georgia,serif", border:"none", opacity:disabled?0.5:1 };
+  const variants = {
+    primary:  { background:"#1e6b45", color:"white" },
+    outline:  { background:"white", color:"#1e6b45", border:"1.5px solid #1e6b45" },
+    ghost:    { background:"transparent", color:"#888", padding:"4px 8px" },
+    danger:   { background:"white", color:"#c0392b", border:"1.5px solid #c0392b" },
+    publish:  { background:"#1a5276", color:"white" },
+    draft:    { background:"white", color:"#1a5276", border:"1.5px solid #1a5276" },
+    share:    { background:"#6d5acd", color:"white" },
+    unshare:  { background:"white", color:"#6d5acd", border:"1.5px solid #6d5acd" },
+  };
+  return (
+    <button onClick={disabled ? undefined : onClick} style={{...base, ...variants[variant], ...style}}>
+      {children}
+    </button>
+  );
+}
+
+function Spinner() {
+  return (
+    <div style={{width:20,height:20,border:"2px solid #d2eadb",borderTop:"2px solid #1e6b45",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+  );
+}
+
+function CopyLink({ url }) {
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => {
+    navigator.clipboard && navigator.clipboard.writeText(url).catch(()=>{});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div style={G.row({alignItems:"center",gap:6,background:"#f3f0ff",border:"1.5px solid #b8aef0",borderRadius:8,padding:"7px 10px"})}>
+      <span style={{fontSize:11,color:"#5a4aaa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"Georgia,serif"}}>{url}</span>
+      <button onClick={copy} style={{cursor:"pointer",background:"#6d5acd",color:"white",border:"none",borderRadius:5,padding:"3px 9px",fontSize:10,fontWeight:700,fontFamily:"Georgia,serif"}}>
+        {copied ? "Copiato" : "Copia"}
+      </button>
+    </div>
+  );
+}
+
+function FeedbackBadge({ published }) {
+  return (
+    <span style={{fontSize:9,fontWeight:700,letterSpacing:0.4,padding:"2px 7px",borderRadius:99,
+      background:published?"#e8f4fd":"#fef9e7", color:published?"#1a5276":"#7d6608",
+      border:"1px solid "+(published?"#85c1e9":"#f7dc6f"), fontFamily:"Georgia,serif", whiteSpace:"nowrap"}}>
+      {published ? "Pubblicata" : "Bozza"}
+    </span>
+  );
+}
+
+function LoginPage() {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError("");
+    const result = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: "https://baldassarrefrancesco70.github.io/giardino_filosofico/",
+        hd: "convittogbvico.edu.it",
+        scopes: "email profile",
+      }
+    });
+    if (result.error) { setError(result.error.message); setLoading(false); }
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f4f9f5",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{background:"white",borderRadius:16,padding:"48px 40px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)",maxWidth:400,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>🌿</div>
+        <h1 style={{fontFamily:"Georgia,serif",color:"#0d3d25",fontSize:24,marginBottom:8}}>Giardino Filosofico</h1>
+        <p style={{color:"#778a7f",fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.6,marginBottom:32}}>
+          Liceo Classico G.B. Vico · Chieti<br/>
+          Accedi con il tuo account scolastico
+        </p>
+        {error && <div style={{background:"#fff0f0",color:"#b00",padding:"8px 12px",borderRadius:7,fontSize:12,marginBottom:16,border:"1px solid #f0b0b0"}}>{error}</div>}
+        <button onClick={handleLogin} disabled={loading} style={{cursor:loading?"not-allowed":"pointer",background:"white",color:"#444",border:"1.5px solid #ddd",borderRadius:7,padding:"10px 20px",fontSize:14,fontFamily:"Georgia,serif",fontWeight:600,display:"flex",alignItems:"center",gap:8,margin:"0 auto",opacity:loading?0.7:1}}>
+          {loading ? <Spinner/> : (
+            <svg width="18" height="18" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+          )}
+          Accedi con Google
+        </button>
+        <p style={{fontSize:10,color:"#b0c0b8",marginTop:20,fontFamily:"Georgia,serif"}}>Solo account @convittogbvico.edu.it</p>
+      </div>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+    </div>
+  );
+}
+
+function Graph({ notes, selectedId, onSelect }) {
+  const svgRef = React.useRef(null);
+  const [pos, setPos] = React.useState({});
+  const dragging = React.useRef(null);
+  const offset = React.useRef({x:0, y:0});
+
+  React.useEffect(() => {
+    if (!notes.length) return;
+    const W=560, H=370, cx=W/2, cy=H/2, r=Math.min(cx,cy)-60;
+    const p = {};
+    notes.forEach((n,i) => {
+      const a = (2*Math.PI*i/notes.length) - Math.PI/2;
+      p[n.id] = { x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) };
+    });
+    setPos(p);
+  }, [notes.map(n=>n.id).join(",")]);
+
+  const onMD = React.useCallback((e, id) => {
+    e.preventDefault();
+    const r = svgRef.current.getBoundingClientRect();
+    offset.current = { x: e.clientX - r.left - (pos[id] ? pos[id].x : 0), y: e.clientY - r.top - (pos[id] ? pos[id].y : 0) };
+    dragging.current = id;
+  }, [pos]);
+
+  const onMM = React.useCallback((e) => {
+    if (!dragging.current) return;
+    const r = svgRef.current.getBoundingClientRect();
+    setPos(p => ({...p, [dragging.current]: {
+      x: Math.max(30, Math.min(530, e.clientX - r.left - offset.current.x)),
+      y: Math.max(30, Math.min(340, e.clientY - r.top - offset.current.y))
+    }}));
+  }, []);
+
+  const onMU = React.useCallback(() => { dragging.current = null; }, []);
+
+  const edges = [];
+  const seen = new Set();
+  notes.forEach(n => {
+    (n.links || []).forEach(lid => {
+      const k = [n.id, lid].sort().join("-");
+      if (!seen.has(k) && pos[n.id] && pos[lid]) { seen.add(k); edges.push([n.id, lid]); }
+    });
+  });
+
+  return (
+    <svg ref={svgRef} width="100%" viewBox="0 0 560 370"
+      style={{background:"#f7fbf8",borderRadius:14,border:"1.5px solid #c8e6d0",userSelect:"none"}}
+      onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}>
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      {edges.map(([a,b]) => {
+        const pa = pos[a], pb = pos[b];
+        if (!pa || !pb) return null;
+        return <line key={a+b} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#6db87a" strokeWidth={1.5} strokeOpacity={0.45} strokeDasharray="5 4"/>;
+      })}
+      {notes.map(n => {
+        const p = pos[n.id];
+        if (!p) return null;
+        const s = STATUS[n.status], sel = n.id === selectedId, nr = sel ? 24 : 19;
+        return (
+          <g key={n.id} transform={"translate("+p.x+","+p.y+")"} style={{cursor:"grab"}}
+            onMouseDown={e => onMD(e, n.id)} onClick={() => onSelect(n)}>
+            {sel && <circle r={nr+6} fill={s.color} fillOpacity={0.15}/>}
+            <circle r={nr} fill={s.color} fillOpacity={sel?1:0.82} stroke={sel?s.dark:s.color} strokeWidth={sel?2.5:1.5} filter={sel?"url(#glow)":undefined}/>
+            <text textAnchor="middle" dy="0.38em" fontSize={sel?17:14} pointerEvents="none">{s.emoji}</text>
+            <text textAnchor="middle" dy={nr+13} fontSize={8.5} fill="#2a4a32" fontWeight={sel?700:500} fontFamily="Georgia,serif" pointerEvents="none">
+              {n.title.length > 22 ? n.title.slice(0,20)+"..." : n.title}
+            </text>
+          </g>
+        );
+      })}
+      {!notes.length && <text x="280" y="185" textAnchor="middle" fill="#b0c8b8" fontSize={13} fontFamily="Georgia,serif">Nessuna nota ancora. Crea la prima!</text>}
+    </svg>
+  );
+}
+
+function Stats({ notes }) {
+  const c = {seme:0, germoglio:0, pianta:0};
+  notes.forEach(n => { if (c[n.status] !== undefined) c[n.status]++; });
+  const links = Math.round(notes.reduce((a,n) => a + (n.links ? n.links.length : 0), 0) / 2);
+  return (
+    <div style={G.row({gap:8, flexWrap:"wrap"})}>
+      {S_ORDER.map(s => (
+        <div key={s} style={{background:STATUS[s].bg,border:"1.5px solid "+STATUS[s].color,borderRadius:10,padding:"7px 14px",textAlign:"center",flex:1,minWidth:58}}>
+          <div style={{fontSize:20}}>{STATUS[s].emoji}</div>
+          <div style={{fontSize:22,fontWeight:700,color:STATUS[s].dark,fontFamily:"Georgia,serif"}}>{c[s]}</div>
+          <div style={{fontSize:9,color:"#558060",letterSpacing:0.4,textTransform:"uppercase"}}>{STATUS[s].label}</div>
+        </div>
+      ))}
+      <div style={{background:"#eef2ff",border:"1.5px solid #a0aee8",borderRadius:10,padding:"7px 14px",textAlign:"center",flex:1,minWidth:58}}>
+        <div style={{fontSize:20}}>🔗</div>
+        <div style={{fontSize:22,fontWeight:700,color:"#3a50c0",fontFamily:"Georgia,serif"}}>{links}</div>
+        <div style={{fontSize:9,color:"#5060a0",letterSpacing:0.4,textTransform:"uppercase"}}>Connessioni</div>
+      </div>
+    </div>
+  );
+}
+
+function NoteEditor({ note, allNotes, onSave, onDelete, onClose }) {
+  const isNew = !note.id;
+  const [f, setF] = React.useState({
+    title: note.title || "", author: note.author || "",
+    status: note.status || "seme", text: note.text || "", links: note.links || []
+  });
+  const [err, setErr] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const set = (k, v) => setF(p => ({...p, [k]: v}));
+  const toggleLink = id => set("links", f.links.includes(id) ? f.links.filter(l=>l!==id) : [...f.links, id]);
+
+  const save = async () => {
+    if (!f.title.trim()) { setErr("Il titolo e' obbligatorio."); return; }
+    setSaving(true);
+    const t = today();
+    await onSave({...note, ...f, id: note.id || genId(), updated_at: t, created_at: note.created_at || t, public_token: note.public_token || null});
+    setSaving(false);
+  };
+
+  const linkable = allNotes.filter(n => n.id !== note.id);
+  const inp = {border:"1.5px solid #ccddd4",borderRadius:7,padding:"7px 10px",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"Georgia,serif",background:"#fafdfb"};
+  const lbl = {fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5};
+
+  return (
+    <div style={G.col({gap:14, height:"100%"})}>
+      <div style={G.row({justifyContent:"space-between", alignItems:"center"})}>
+        <h3 style={{margin:0,color:"#0d3d25",fontSize:15,fontFamily:"Georgia,serif"}}>{isNew ? "Nuova nota" : "Modifica nota"}</h3>
+        <Btn onClick={onClose} variant="ghost" style={{fontSize:18}}>x</Btn>
+      </div>
+      {err && <div style={{background:"#fff0f0",color:"#b00",padding:"6px 10px",borderRadius:6,fontSize:12,border:"1px solid #f0b0b0"}}>{err}</div>}
+      <div style={G.col({gap:4})}><label style={lbl}>Titolo *</label><input value={f.title} onChange={e=>set("title",e.target.value)} style={inp} placeholder="Es. La virtu secondo Aristotele"/></div>
+      <div style={G.col({gap:4})}><label style={lbl}>Autore / Riferimento</label><input value={f.author} onChange={e=>set("author",e.target.value)} style={inp} placeholder="Es. Aristotele, Etica Nicomachea"/></div>
+      <div style={G.col({gap:4})}>
+        <label style={lbl}>Stato della nota</label>
+        <div style={G.row({gap:6})}>
+          {S_ORDER.map(s => (
+            <button key={s} onClick={() => set("status",s)} style={{flex:1,cursor:"pointer",border:"1.5px solid "+STATUS[s].color,borderRadius:7,padding:"6px 0",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",background:f.status===s?STATUS[s].color:"white",color:f.status===s?"white":STATUS[s].dark}}>
+              {STATUS[s].emoji} {STATUS[s].label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={G.col({gap:4, flex:1})}>
+        <label style={lbl}>Testo</label>
+        <textarea value={f.text} onChange={e=>set("text",e.target.value)} style={{...inp,resize:"vertical",minHeight:120,lineHeight:1.7}} placeholder="Scrivi le tue riflessioni filosofiche..."/>
+      </div>
+      {linkable.length > 0 && (
+        <div style={G.col({gap:4})}>
+          <label style={lbl}>Connetti ad altre note</label>
+          <div style={G.row({flexWrap:"wrap",gap:5,maxHeight:80,overflowY:"auto"})}>
+            {linkable.map(n => {
+              const on = f.links.includes(n.id);
+              return (
+                <button key={n.id} onClick={()=>toggleLink(n.id)} style={{fontSize:10,padding:"3px 9px",borderRadius:99,cursor:"pointer",fontFamily:"Georgia,serif",border:"1.5px solid "+STATUS[n.status].color,background:on?STATUS[n.status].color:"white",color:on?"white":STATUS[n.status].dark}}>
+                  {STATUS[n.status].emoji} {n.title.length>22 ? n.title.slice(0,20)+"..." : n.title}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div style={G.row({justifyContent:"space-between",paddingTop:4,gap:8})}>
+        {!isNew && <Btn onClick={()=>onDelete(note.id)} variant="danger">Elimina</Btn>}
+        <div style={G.row({gap:8,marginLeft:"auto"})}>
+          <Btn onClick={onClose} variant="outline">Annulla</Btn>
+          <Btn onClick={save} disabled={saving}>{saving?"Salvataggio...":"Salva"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoteDetail({ note, allNotes, noteFeedback, onEdit, onClose, onExportNote }) {
+  const linked   = allNotes.filter(n => (note.links || []).includes(n.id));
+  const linkedBy = allNotes.filter(n => (n.links || []).includes(note.id) && !(note.links || []).includes(n.id));
+  const feedback = noteFeedback.find(f => f.note_id === note.id && f.published);
+
+  return (
+    <div style={G.col({gap:14})}>
+      <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:8})}>
+        <div>
+          <h3 style={{margin:"0 0 4px",color:"#0d3d25",fontSize:16,fontFamily:"Georgia,serif",lineHeight:1.3}}>{note.title}</h3>
+          {note.author && <div style={{color:"#778a7f",fontSize:12,fontStyle:"italic"}}>{note.author}</div>}
+        </div>
+        <div style={G.row({gap:6,alignItems:"center",flexShrink:0})}>
+          <Badge status={note.status} lg/>
+          <Btn onClick={onClose} variant="ghost" style={{fontSize:18}}>x</Btn>
+        </div>
+      </div>
+      <div style={{fontSize:13,lineHeight:1.8,color:"#2a3a30",background:"#f7fbf8",padding:"12px 14px",borderRadius:9,borderLeft:"3px solid #6db87a",fontFamily:"Georgia,serif"}}>
+        {note.text || <em style={{color:"#aaa"}}>Nessun testo ancora.</em>}
+      </div>
+      {(linked.length > 0 || linkedBy.length > 0) && (
+        <div style={G.col({gap:6})}>
+          <div style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Connessioni</div>
+          <div style={G.row({flexWrap:"wrap",gap:5})}>
+            {linked.map(n => <span key={n.id} style={{fontSize:10,padding:"3px 9px",borderRadius:99,background:STATUS[n.status].bg,color:STATUS[n.status].dark,border:"1.5px solid "+STATUS[n.status].color,fontFamily:"Georgia,serif"}}>{"->"} {STATUS[n.status].emoji} {n.title}</span>)}
+            {linkedBy.map(n => <span key={n.id} style={{fontSize:10,padding:"3px 9px",borderRadius:99,background:"#f2f2f2",color:"#888",border:"1.5px solid #ddd",fontFamily:"Georgia,serif"}}>{"<-"} {STATUS[n.status].emoji} {n.title}</span>)}
+          </div>
+        </div>
+      )}
+      {feedback && (
+        <div style={{background:"#eaf4fb",border:"1.5px solid #85c1e9",borderRadius:9,padding:"11px 13px"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#1a5276",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Nota del docente - {fmtDate(feedback.updated_at)}</div>
+          <div style={{fontSize:12,lineHeight:1.7,color:"#1a2e40",fontFamily:"Georgia,serif"}}>{feedback.text}</div>
+        </div>
+      )}
+      <div style={{fontSize:10,color:"#a0b0a8",fontFamily:"Georgia,serif"}}>Creata: {fmtDate(note.created_at)} - Aggiornata: {fmtDate(note.updated_at)}</div>
+      <div style={G.row({gap:8})}>
+        <Btn onClick={() => onExportNote(note,"pdf")} variant="outline" style={{flex:1}}>PDF</Btn>
+        <Btn onClick={() => onExportNote(note,"md")} variant="outline" style={{flex:1}}>Testo</Btn>
+        <Btn onClick={() => onEdit(note)} variant="primary" style={{flex:1}}>Modifica</Btn>
+      </div>
+    </div>
+  );
+}
+
+function GardenSettings({ profile, onToggleGardenShare, onClose }) {
+  return (
+    <div style={G.col({gap:14})}>
+      <div style={G.row({justifyContent:"space-between",alignItems:"center"})}>
+        <h3 style={{margin:0,color:"#0d3d25",fontSize:15,fontFamily:"Georgia,serif"}}>Impostazioni giardino</h3>
+        <Btn onClick={onClose} variant="ghost" style={{fontSize:18}}>x</Btn>
+      </div>
+      <div style={{background:"#faf8ff",border:"1.5px solid #c8bef0",borderRadius:9,padding:"13px 14px"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#5a4aaa",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Condivisione giardino completo</div>
+        <div style={{fontSize:12,color:"#5a4a80",lineHeight:1.6,fontFamily:"Georgia,serif",marginBottom:10}}>Chi ha il link puo vedere tutte le tue note in sola lettura, senza bisogno di account.</div>
+        {profile.garden_public_token ? (
+          <div style={G.col({gap:7})}>
+            <CopyLink url={"https://baldassarrefrancesco70.github.io/giardino_filosofico/public/?token="+profile.garden_public_token}/>
+            <Btn onClick={onToggleGardenShare} variant="unshare" style={{fontSize:11}}>Revoca link giardino</Btn>
+          </div>
+        ) : (
+          <Btn onClick={onToggleGardenShare} variant="share">Genera link giardino pubblico</Btn>
+        )}
+      </div>
+      <div style={{background:"#f7fbf8",border:"1.5px solid #c8e6d0",borderRadius:9,padding:"13px 14px"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#1e6b45",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Note sulla condivisione</div>
+        <ul style={{margin:0,padding:"0 0 0 16px",fontSize:12,color:"#3a5a40",lineHeight:1.9,fontFamily:"Georgia,serif"}}>
+          <li>Il link include tutte le tue note</li>
+          <li>Revocare il link lo rende immediatamente inaccessibile</li>
+          <li>I feedback del docente non sono visibili tramite link pubblico</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function StudentView({ user, profile: initialProfile, onSignOut }) {
+  const [notes, setNotes]           = React.useState([]);
+  const [profile, setProfile]       = React.useState(initialProfile);
+  const [noteFeedback, setNoteFeedback] = React.useState([]);
+  const [gardenFeedback, setGardenFeedback] = React.useState([]);
+  const [loading, setLoading]       = React.useState(true);
+  const [view, setView]             = React.useState("lista");
+  const [panel, setPanel]           = React.useState(null);
+  const [sel, setSel]               = React.useState(null);
+  const [filter, setFilter]         = React.useState("all");
+  const [showGF, setShowGF]         = React.useState(true);
+
+  React.useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [r1, r2, r3] = await Promise.all([
+      supabase.from("notes").select("*").eq("student_email", user.email).order("created_at"),
+      supabase.from("note_feedback").select("*"),
+      supabase.from("garden_feedback").select("*").eq("student_email", user.email),
+    ]);
+    setNotes(r1.data || []);
+    setNoteFeedback(r2.data || []);
+    setGardenFeedback(r3.data || []);
+    setLoading(false);
+  };
+
+  const saveNote = async note => {
+    const isNew = !notes.some(n => n.id === note.id);
+    const result = isNew
+      ? await supabase.from("notes").insert({...note, student_email: user.email}).select().single()
+      : await supabase.from("notes").update({title:note.title,author:note.author,status:note.status,text:note.text,links:note.links,updated_at:today()}).eq("id",note.id).select().single();
+    if (result.data) setNotes(ns => ns.some(n=>n.id===result.data.id) ? ns.map(n=>n.id===result.data.id?result.data:n) : [...ns, result.data]);
+    setPanel(null);
+  };
+
+  const deleteNote = async id => {
+    await supabase.from("notes").delete().eq("id", id);
+    setNotes(ns => ns.filter(n=>n.id!==id).map(n=>({...n, links:(n.links||[]).filter(l=>l!==id)})));
+    setPanel(null); setSel(null);
+  };
+
+  const toggleGardenShare = async () => {
+    const token = profile.garden_public_token ? null : genToken();
+    const result = await supabase.from("student_profiles").update({garden_public_token: token}).eq("email", user.email).select().single();
+    if (result.data) setProfile(result.data);
+  };
+
+  const selectNote = n => { setSel(n); setPanel({mode:"detail", note:n}); };
+  const filtered = filter === "all" ? notes : notes.filter(n => n.status === filter);
+  const publishedGF = gardenFeedback.filter(f => f.published);
+
+  const exportNotePdf = note => {
+    const w = window.open("","_blank");
+    if (!w) return;
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + note.title + "</title>"
+      + "<style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}"
+      + "h1{color:#0d3d25;font-size:22px;margin:0 0 6px}.ref{color:#778a7f;font-size:13px;font-style:italic;margin-bottom:10px}"
+      + ".badge{display:inline-block;padding:3px 12px;border-radius:99px;font-size:12px;font-weight:700;margin-bottom:16px}"
+      + ".seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}"
+      + ".germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}"
+      + ".pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}"
+      + ".text{font-size:15px;line-height:1.85;padding:16px 18px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}"
+      + ".meta{color:#aaa;font-size:11px;margin-top:20px}</style></head><body>"
+      + "<h1>" + note.title + "</h1>"
+      + (note.author ? "<div class='ref'>" + note.author + "</div>" : "")
+      + "<span class='badge " + note.status + "'>" + STATUS[note.status].emoji + " " + STATUS[note.status].label + "</span>"
+      + "<div class='text'>" + (note.text || "<em>Nessun testo</em>") + "</div>"
+      + "<div class='meta'>Creata: " + fmtDate(note.created_at) + " - Aggiornata: " + fmtDate(note.updated_at) + "</div>"
+      + "</body></html>";
+    w.document.write(html); w.document.close(); w.print();
+  };
+
+  const exportNoteMd = note => {
+    const lines = [
+      "# " + note.title,
+      note.author ? "*" + note.author + "*" : "",
+      "**Stato:** " + STATUS[note.status].emoji + " " + STATUS[note.status].label,
+      "",
+      note.text || "",
+      "",
+      "---",
+      "*Creata: " + fmtDate(note.created_at) + " - Aggiornata: " + fmtDate(note.updated_at) + "*",
+    ].join("\n");
+    const blob = new Blob([lines], {type:"text/markdown"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = note.title.replace(/[^a-zA-Z0-9\s]/g,"").trim().replace(/\s+/g,"-").toLowerCase() + ".md";
+    a.click();
+  };
+
+  const exportNote = (note, format) => {
+    if (format === "md") { exportNoteMd(note); } else { exportNotePdf(note); }
+  };
+
+  const doExportPdf = () => {
+    const w = window.open("","_blank");
+    if (!w) return;
+    const rows = notes.map(n =>
+      "<h2>" + n.title + "</h2>"
+      + (n.author ? "<div class='ref'>" + n.author + "</div>" : "")
+      + "<span class='badge " + n.status + "'>" + STATUS[n.status].emoji + " " + STATUS[n.status].label + "</span>"
+      + "<div class='text'>" + (n.text || "<em>Nessun testo</em>") + "</div><hr>"
+    ).join("");
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Giardino Filosofico</title>"
+      + "<style>body{font-family:Georgia,serif;max-width:680px;margin:48px auto;color:#1a2e22;line-height:1.6}"
+      + "h1{color:#1e6b45;border-bottom:2px solid #c8e6d0;padding-bottom:10px}"
+      + ".meta{color:#778a7f;font-size:13px;margin-bottom:32px}"
+      + "h2{color:#0d3d25;font-size:17px;margin:28px 0 4px}"
+      + ".ref{color:#778a7f;font-size:12px;font-style:italic;margin-bottom:8px}"
+      + ".badge{display:inline-block;padding:2px 11px;border-radius:99px;font-size:11px;font-weight:700;margin-bottom:10px}"
+      + ".seme{background:#f0faf2;color:#3a7a4a;border:1px solid #6db87a}"
+      + ".germoglio{background:#e6f5ed;color:#1f6644;border:1px solid #3a9e6f}"
+      + ".pianta{background:#d2eadb;color:#0d3d25;border:1px solid #1e6b45}"
+      + ".text{font-size:14px;line-height:1.8;padding:10px 14px;background:#f7fbf8;border-left:3px solid #6db87a;border-radius:4px}"
+      + "hr{border:none;border-top:1px solid #d8ead0;margin:28px 0}</style></head><body>"
+      + "<h1>Giardino Filosofico</h1>"
+      + "<div class='meta'><strong>" + profile.display_name + "</strong> - Classe " + profile.classe
+      + "<br>Esportato il " + new Date().toLocaleDateString("it-IT") + "</div>"
+      + rows + "</body></html>";
+    w.document.write(html); w.document.close(); w.print();
+  };
+
+  const doExportMd = () => {
+    const rows = notes.flatMap(n => [
+      "## " + n.title,
+      n.author ? "*" + n.author + "*" : "",
+      "**Stato:** " + STATUS[n.status].emoji + " " + STATUS[n.status].label,
+      "",
+      n.text || "*Nessun testo*",
+      "",
+      "---",
+      "",
+    ]);
+    const md = [
+      "# Giardino Filosofico - " + profile.display_name,
+      "*Classe " + profile.classe + " - Esportato il " + new Date().toLocaleDateString("it-IT") + "*",
+      "",
+      ...rows,
+    ].join("\n");
+    const blob = new Blob([md], {type:"text/markdown"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "giardino-" + profile.display_name.replace(/\s+/g,"-").toLowerCase() + ".md";
+    a.click();
+  };
+
+  if (loading) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}>
+        <Spinner/> Caricamento giardino...
+        <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={G.col({height:"100vh",background:"#f4f9f5",fontFamily:"system-ui,sans-serif"})}>
+      <div style={{background:"white",borderBottom:"1.5px solid #d2eadb",padding:"13px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+        <div>
+          <div style={{fontWeight:700,color:"#0d3d25",fontSize:17,fontFamily:"Georgia,serif"}}>Il mio Giardino Filosofico</div>
+          <div style={{fontSize:11,color:"#90a89a",marginTop:1}}>{profile.display_name} - {profile.classe}</div>
+        </div>
+        <div style={G.row({gap:7,flexWrap:"wrap",alignItems:"center"})}>
+          <div style={{display:"flex",alignItems:"center",border:"1.5px solid #1e6b45",borderRadius:7,overflow:"hidden"}}>
+            <span style={{padding:"5px 8px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0",whiteSpace:"nowrap"}}>Esporta</span>
+            <button onClick={doExportPdf} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0"}}>PDF</button>
+            <button onClick={doExportMd} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45"}}>Testo</button>
+          </div>
+          <Btn onClick={() => setPanel({mode:"settings"})} variant="outline" style={{fontSize:11}}>Giardino</Btn>
+          <Btn onClick={() => setPanel({mode:"edit", note:{}})}>+ Nuova nota</Btn>
+          <Btn onClick={onSignOut} variant="ghost" style={{fontSize:11}}>Esci</Btn>
+        </div>
+      </div>
+
+      <div style={G.row({flex:1, overflow:"hidden"})}>
+        <div style={G.col({flex:1, overflow:"hidden"})}>
+          <div style={{background:"white",borderBottom:"1px solid #e6f0e8",padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={G.row()}>
+              {["lista","grafo"].map(v => (
+                <button key={v} onClick={() => setView(v)} style={{padding:"5px 16px",border:"1.5px solid #c8e6d0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Georgia,serif",background:view===v?"#1e6b45":"white",color:view===v?"white":"#558060",borderRadius:v==="lista"?"7px 0 0 7px":"0 7px 7px 0"}}>
+                  {v === "lista" ? "Lista" : "Grafo"}
+                </button>
+              ))}
+            </div>
+            <div style={G.row({gap:5})}>
+              {["all", ...S_ORDER].map(s => (
+                <button key={s} onClick={() => setFilter(s)} style={{fontSize:10,padding:"3px 10px",borderRadius:99,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:700,border:"1.5px solid "+(s==="all"?"#b0ccb8":STATUS[s].color),background:filter===s?(s==="all"?"#1e6b45":STATUS[s].color):"white",color:filter===s?"white":s==="all"?"#558060":STATUS[s].dark}}>
+                  {s === "all" ? "Tutte" : (STATUS[s].emoji + " " + STATUS[s].label)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{flex:1, overflowY:"auto", padding:16}}>
+            {publishedGF.length > 0 && showGF && (
+              <div style={{background:"#eaf4fb",border:"1.5px solid #85c1e9",borderRadius:10,padding:"12px 15px",marginBottom:14}}>
+                <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:8})}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#1a5276",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>
+                    Feedback del docente - {fmtDate(publishedGF[publishedGF.length-1].created_at)}
+                  </div>
+                  <button onClick={() => setShowGF(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#85c1e9"}}>x</button>
+                </div>
+                <div style={{fontSize:12,lineHeight:1.75,color:"#1a2e40",fontFamily:"Georgia,serif"}}>{publishedGF[publishedGF.length-1].text}</div>
+              </div>
+            )}
+
+            {view === "lista" ? (
+              <div style={G.col({gap:10})}>
+                <Stats notes={notes}/>
+                <div style={G.col({gap:8,marginTop:4})}>
+                  {filtered.length === 0 ? (
+                    <div style={{textAlign:"center",color:"#b0c8b8",marginTop:48,fontFamily:"Georgia,serif",fontSize:14}}>Nessuna nota in questa categoria.</div>
+                  ) : filtered.map(n => {
+                    const hasFB = noteFeedback.some(f => f.note_id === n.id && f.published);
+                    return (
+                      <div key={n.id} onClick={() => selectNote(n)} style={{background:sel&&sel.id===n.id?"#e6f5ed":"white",border:"1.5px solid "+(sel&&sel.id===n.id?"#3a9e6f":"#dceade"),borderRadius:11,padding:"11px 15px",cursor:"pointer"}}>
+                        <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:10})}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={G.row({alignItems:"center",gap:6,marginBottom:2})}>
+                              <div style={{fontWeight:700,fontSize:13,color:"#0d3d25",fontFamily:"Georgia,serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{n.title}</div>
+                              {hasFB && <span style={{fontSize:9,color:"#1a5276",flexShrink:0}}>msg</span>}
+                            </div>
+                            {n.author && <div style={{fontSize:11,color:"#90a89a",marginBottom:4,fontStyle:"italic"}}>{n.author}</div>}
+                            <div style={{fontSize:11,color:"#4a6050",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.6,fontFamily:"Georgia,serif"}}>{n.text || <em style={{color:"#c0d0c8"}}>Nessun testo</em>}</div>
+                          </div>
+                          <div style={G.col({alignItems:"flex-end",gap:5,flexShrink:0})}>
+                            <Badge status={n.status}/>
+                            <button onClick={e=>{e.stopPropagation();setPanel({mode:"edit",note:n});}} style={{fontSize:10,padding:"2px 9px",borderRadius:6,border:"1px solid #ccddd4",background:"white",cursor:"pointer",color:"#558060",fontFamily:"Georgia,serif"}}>Modifica</button>
+                          </div>
+                        </div>
+                        {(n.links||[]).length > 0 && <div style={{marginTop:6,fontSize:10,color:"#3a9e6f",fontFamily:"Georgia,serif"}}>{n.links.length} {n.links.length===1?"connessione":"connessioni"}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <Graph notes={filtered} selectedId={sel ? sel.id : null} onSelect={selectNote}/>
+            )}
+          </div>
+        </div>
+
+        {panel && (
+          <div style={{width:370,background:"white",borderLeft:"1.5px solid #d2eadb",padding:20,overflowY:"auto",flexShrink:0}}>
+            {panel.mode === "detail" && <NoteDetail note={panel.note} allNotes={notes} noteFeedback={noteFeedback} onEdit={n=>setPanel({mode:"edit",note:n})} onClose={()=>{setPanel(null);setSel(null);}} onExportNote={exportNote}/>}
+            {panel.mode === "edit" && <NoteEditor note={panel.note} allNotes={notes} onSave={saveNote} onDelete={deleteNote} onClose={()=>setPanel(null)}/>}
+            {panel.mode === "settings" && <GardenSettings profile={profile} onToggleGardenShare={toggleGardenShare} onClose={()=>setPanel(null)}/>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FeedbackEditor({ feedback, onSave, onClose, label }) {
+  const [text, setText] = React.useState(feedback ? feedback.text || "" : "");
+  const [err, setErr]   = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const save = async publish => {
+    if (!text.trim()) { setErr("Il testo e' obbligatorio."); return; }
+    setSaving(true);
+    const t = today();
+    await onSave({
+      ...(feedback || {}),
+      id: feedback ? feedback.id || genId() : genId(),
+      text, published: publish, updated_at: t,
+      created_at: feedback ? feedback.created_at || t : t
+    });
+    setSaving(false);
+  };
+
+  return (
+    <div style={G.col({gap:14})}>
+      <div style={G.row({justifyContent:"space-between",alignItems:"center"})}>
+        <h3 style={{margin:0,color:"#0d3d25",fontSize:14,fontFamily:"Georgia,serif",lineHeight:1.3}}>{label}</h3>
+        <Btn onClick={onClose} variant="ghost" style={{fontSize:18}}>x</Btn>
+      </div>
+      {err && <div style={{background:"#fff0f0",color:"#b00",padding:"6px 10px",borderRadius:6,fontSize:12}}>{err}</div>}
+      {feedback && feedback.published !== undefined && <FeedbackBadge published={feedback.published}/>}
+      <div style={G.col({gap:4})}>
+        <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Testo annotazione</label>
+        <textarea value={text} onChange={e=>setText(e.target.value)} style={{border:"1.5px solid #ccddd4",borderRadius:7,padding:"8px 10px",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"Georgia,serif",background:"#fafdfb",resize:"vertical",minHeight:140,lineHeight:1.7}} placeholder="Scrivi la tua annotazione..."/>
+      </div>
+      <div style={{background:"#fef9e7",border:"1px solid #f7dc6f",borderRadius:7,padding:"8px 11px",fontSize:11,color:"#7d6608",fontFamily:"Georgia,serif",lineHeight:1.6}}>
+        Salva come bozza per continuare a lavorarci. Pubblica quando sei pronto.
+      </div>
+      <div style={G.row({gap:8,justifyContent:"flex-end"})}>
+        <Btn onClick={onClose} variant="outline">Annulla</Btn>
+        <Btn onClick={() => save(false)} variant="draft" disabled={saving}>Salva bozza</Btn>
+        <Btn onClick={() => save(true)} variant="publish" disabled={saving}>Pubblica</Btn>
+      </div>
+    </div>
+  );
+}
+
+function TeacherSidebar({ students, gardenFeedbacks, selStudent, onSelect }) {
+  const [open, setOpen] = React.useState({"3A":true,"3D":true,"4D":true});
+  const toggle = cl => setOpen(o => ({...o, [cl]: !o[cl]}));
+  const classeColor = {"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"};
+  const classeBg    = {"3A":"#e8f5ee","3D":"#eaf4fb","4D":"#f3eeff"};
+
+  return (
+    <div style={{width:250,background:"white",borderRight:"1.5px solid #d2eadb",overflowY:"auto",flexShrink:0}}>
+      <div style={{padding:"10px 14px",fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.6,borderBottom:"1px solid #e6f0e8",background:"#f7fbf8"}}>
+        {students.length} studenti - {CLASSI.length} classi
+      </div>
+      {CLASSI.map(cl => {
+        const cs = students.filter(s => s.classe === cl);
+        const isOpen = open[cl];
+        const cc = classeColor[cl], cb = classeBg[cl];
+        const totPiante = cs.reduce((a,s) => a + s.notes.filter(n => n.status==="pianta").length, 0);
+        return (
+          <div key={cl}>
+            <button onClick={() => toggle(cl)} style={{width:"100%",textAlign:"left",background:isOpen?cb:"#fafafa",border:"none",borderBottom:"1px solid #e0ece4",padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <div style={G.row({alignItems:"center",gap:8})}>
+                <span style={{background:cc,color:"white",borderRadius:6,padding:"2px 9px",fontSize:12,fontWeight:700,fontFamily:"Georgia,serif"}}>{cl}</span>
+                <span style={{fontSize:11,color:"#558060",fontFamily:"Georgia,serif"}}>{cs.length} studenti</span>
+              </div>
+              <div style={G.row({alignItems:"center",gap:6})}>
+                <span style={{fontSize:10,color:"#90a89a"}}>{totPiante}</span>
+                <span style={{fontSize:13,color:cc,fontWeight:700}}>{isOpen?"v":">"}</span>
+              </div>
+            </button>
+            {isOpen && cs.map(s => {
+              const c = {seme:0,germoglio:0,pianta:0};
+              s.notes.forEach(n => { if (c[n.status]!==undefined) c[n.status]++; });
+              const gf = gardenFeedbacks.find(f => f.student_email === s.email);
+              const active = selStudent === s.email;
+              return (
+                <div key={s.email} onClick={() => onSelect(s.email)} style={{padding:"10px 14px 10px 20px",cursor:"pointer",borderBottom:"1px solid #f0f5f1",background:active?cb:"white",borderLeft:"3px solid "+(active?cc:"transparent")}}>
+                  <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:4})}>
+                    <div style={{fontWeight:active?700:600,fontSize:12,color:"#0d3d25",fontFamily:"Georgia,serif"}}>{s.display_name}</div>
+                    {gf && <FeedbackBadge published={gf.published}/>}
+                  </div>
+                  <div style={{fontSize:10,color:"#90a89a",margin:"2px 0 4px"}}>{s.notes.length} note</div>
+                  <div style={G.row({gap:7})}>
+                    {S_ORDER.map(k => <span key={k} style={{fontSize:10,color:STATUS[k].color,fontFamily:"Georgia,serif"}}>{STATUS[k].emoji} {c[k]}</span>)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TeacherView({ user, onSignOut }) {
+  const [students, setStudents]           = React.useState([]);
+  const [noteFeedbacks, setNoteFeedbacks] = React.useState([]);
+  const [gardenFeedbacks, setGardenFeedbacks] = React.useState([]);
+  const [loading, setLoading]             = React.useState(true);
+  const [selStudent, setSelStudent]       = React.useState(null);
+  const [selNote, setSelNote]             = React.useState(null);
+  const [gView, setGView]                 = React.useState("lista");
+  const [panel, setPanel]                 = React.useState(null);
+
+  React.useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    const [r1, r2, r3, r4] = await Promise.all([
+      supabase.from("student_profiles").select("*").order("classe").order("display_name"),
+      supabase.from("notes").select("*").order("created_at"),
+      supabase.from("note_feedback").select("*"),
+      supabase.from("garden_feedback").select("*"),
+    ]);
+    const profiles = r1.data || [];
+    const allNotes = r2.data || [];
+    setStudents(profiles.map(p => ({...p, notes: allNotes.filter(n => n.student_email === p.email)})));
+    setNoteFeedbacks(r3.data || []);
+    setGardenFeedbacks(r4.data || []);
+    setLoading(false);
+  };
+
+  const st = students.find(s => s.email === selStudent);
+  const getNoteFB   = noteId => noteFeedbacks.find(f => f.note_id === noteId);
+  const getGardenFB = email  => gardenFeedbacks.find(f => f.student_email === email);
+
+  const saveNoteFB = async (noteId, fb) => {
+    const full = {...fb, note_id: noteId, teacher_email: user.email};
+    const isNew = !noteFeedbacks.some(f => f.note_id === noteId);
+    const result = isNew
+      ? await supabase.from("note_feedback").insert(full).select().single()
+      : await supabase.from("note_feedback").update({text:full.text,published:full.published,updated_at:today()}).eq("id",full.id).select().single();
+    if (result.data) setNoteFeedbacks(fs => fs.some(f=>f.note_id===noteId) ? fs.map(f=>f.note_id===noteId?result.data:f) : [...fs, result.data]);
+    setPanel(null);
+  };
+
+  const saveGardenFB = async (email, fb) => {
+    const full = {...fb, student_email: email, teacher_email: user.email};
+    const isNew = !gardenFeedbacks.some(f => f.student_email === email);
+    const result = isNew
+      ? await supabase.from("garden_feedback").insert(full).select().single()
+      : await supabase.from("garden_feedback").update({text:full.text,published:full.published,updated_at:today()}).eq("id",full.id).select().single();
+    if (result.data) setGardenFeedbacks(fs => fs.some(f=>f.student_email===email) ? fs.map(f=>f.student_email===email?result.data:f) : [...fs, result.data]);
+    setPanel(null);
+  };
+
+  const handleSelectStudent = email => { setSelStudent(email); setSelNote(null); setPanel(null); };
+
+  if (loading) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}>
+        <Spinner/> Caricamento giardini...
+        <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={G.col({height:"100vh",background:"#f0f7f2",fontFamily:"system-ui,sans-serif"})}>
+      <div style={{background:"#0d3d25",padding:"13px 22px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontWeight:700,color:"white",fontSize:17,fontFamily:"Georgia,serif"}}>Vista Docente - Giardini Filosofici</div>
+        <div style={G.row({alignItems:"center",gap:12})}>
+          <div style={{fontSize:11,color:"#80c898"}}>{user.email}</div>
+          <Btn onClick={onSignOut} variant="ghost" style={{color:"#80c898",fontSize:11}}>Esci</Btn>
+        </div>
+      </div>
+
+      <div style={G.row({flex:1,overflow:"hidden"})}>
+        <TeacherSidebar students={students} gardenFeedbacks={gardenFeedbacks} selStudent={selStudent} onSelect={handleSelectStudent}/>
+
+        <div style={{flex:1,overflowY:"auto",padding:22}}>
+          {!selStudent ? (
+            <div style={{textAlign:"center",marginTop:90,color:"#b0c8b8"}}>
+              <div style={{fontSize:52}}>🌿</div>
+              <div style={{fontSize:14,marginTop:14,fontFamily:"Georgia,serif"}}>Seleziona uno studente per vedere il suo giardino</div>
+            </div>
+          ) : st && (
+            <div>
+              <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12})}>
+                <div>
+                  <div style={G.row({alignItems:"center",gap:10,marginBottom:4})}>
+                    <h2 style={{margin:0,color:"#0d3d25",fontFamily:"Georgia,serif",fontSize:20}}>{st.display_name}</h2>
+                    <span style={{background:{"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"}[st.classe],color:"white",borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif"}}>{st.classe}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"#90a89a",fontStyle:"italic"}}>{st.email}</div>
+                </div>
+                <div style={G.row({gap:8,flexWrap:"wrap",alignItems:"center"})}>
+                  <Btn onClick={() => setPanel({mode:"gardenFeedback",student:st})} variant={getGardenFB(st.email)?"draft":"outline"} style={{fontSize:11}}>
+                    {getGardenFB(st.email) ? "Modifica feedback giardino" : "+ Feedback giardino"}
+                  </Btn>
+                  <div style={G.row()}>
+                    {["lista","grafo"].map(v => (
+                      <button key={v} onClick={() => setGView(v)} style={{padding:"5px 15px",border:"1.5px solid #c8e6d0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Georgia,serif",background:gView===v?"#1e6b45":"white",color:gView===v?"white":"#558060",borderRadius:v==="lista"?"7px 0 0 7px":"0 7px 7px 0"}}>
+                        {v === "lista" ? "Lista" : "Grafo"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {getGardenFB(st.email) && (
+                <div style={{background:"#eaf4fb",border:"1.5px solid #85c1e9",borderRadius:10,padding:"12px 15px",marginBottom:16}}>
+                  <div style={G.row({justifyContent:"space-between",alignItems:"center",marginBottom:6})}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#1a5276",textTransform:"uppercase",letterSpacing:0.5}}>Feedback giardino</div>
+                    <FeedbackBadge published={getGardenFB(st.email).published}/>
+                  </div>
+                  <div style={{fontSize:12,lineHeight:1.75,color:"#1a2e40",fontFamily:"Georgia,serif"}}>{getGardenFB(st.email).text}</div>
+                </div>
+              )}
+
+              <div style={{marginBottom:16}}><Stats notes={st.notes}/></div>
+
+              {gView === "lista" ? (
+                <div style={G.col({gap:8})}>
+                  {st.notes.map(n => {
+                    const nf = getNoteFB(n.id);
+                    const isSel = selNote && selNote.id === n.id;
+                    return (
+                      <div key={n.id} onClick={() => setSelNote(isSel ? null : n)} style={{background:isSel?"#e6f5ed":"white",border:"1.5px solid "+(isSel?"#3a9e6f":"#dceade"),borderRadius:11,padding:"11px 15px",cursor:"pointer"}}>
+                        <div style={G.row({justifyContent:"space-between",alignItems:"center",gap:10})}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:700,fontSize:13,color:"#0d3d25",fontFamily:"Georgia,serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:2}}>{n.title}</div>
+                            {n.author && <div style={{fontSize:11,color:"#90a89a",fontStyle:"italic"}}>{n.author}</div>}
+                          </div>
+                          <div style={G.row({gap:6,alignItems:"center",flexShrink:0})}>
+                            {nf && <FeedbackBadge published={nf.published}/>}
+                            <Badge status={n.status}/>
+                          </div>
+                        </div>
+                        {isSel && (
+                          <div style={G.col({gap:10,marginTop:10})}>
+                            <p style={{fontSize:12,lineHeight:1.8,color:"#3a4e40",margin:0,fontFamily:"Georgia,serif",background:"#f7fbf8",padding:"9px 12px",borderRadius:7,borderLeft:"3px solid #6db87a"}}>
+                              {n.text || <em style={{color:"#aaa"}}>Nessun testo</em>}
+                            </p>
+                            {(n.links||[]).length > 0 && <div style={{fontSize:10,color:"#3a9e6f"}}>{n.links.length} connessioni</div>}
+                            {nf && (
+                              <div style={{background:"#eaf4fb",border:"1.5px solid #85c1e9",borderRadius:8,padding:"10px 12px"}}>
+                                <div style={G.row({justifyContent:"space-between",alignItems:"center",marginBottom:5})}>
+                                  <div style={{fontSize:10,fontWeight:700,color:"#1a5276",textTransform:"uppercase",letterSpacing:0.4}}>Tua annotazione</div>
+                                  <FeedbackBadge published={nf.published}/>
+                                </div>
+                                <div style={{fontSize:12,lineHeight:1.7,color:"#1a2e40",fontFamily:"Georgia,serif"}}>{nf.text}</div>
+                              </div>
+                            )}
+                            <Btn onClick={e=>{e.stopPropagation();setPanel({mode:"noteFeedback",note:n,student:st});}} variant={nf?"draft":"outline"} style={{fontSize:11,alignSelf:"flex-start"}}>
+                              {nf ? "Modifica annotazione" : "+ Aggiungi annotazione"}
+                            </Btn>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Graph notes={st.notes} selectedId={selNote ? selNote.id : null} onSelect={n => setSelNote(selNote && selNote.id===n.id ? null : n)}/>
+              )}
+            </div>
+          )}
+        </div>
+
+        {panel && (
+          <div style={{width:380,background:"white",borderLeft:"1.5px solid #d2eadb",padding:20,overflowY:"auto",flexShrink:0}}>
+            {panel.mode === "noteFeedback" && (
+              <FeedbackEditor feedback={getNoteFB(panel.note.id)} label={"Annotazione: " + panel.note.title} onSave={fb=>saveNoteFB(panel.note.id,fb)} onClose={()=>setPanel(null)}/>
+            )}
+            {panel.mode === "gardenFeedback" && (
+              <FeedbackEditor feedback={getGardenFB(panel.student.email)} label={"Feedback giardino: " + panel.student.display_name} onSave={fb=>saveGardenFB(panel.student.email,fb)} onClose={()=>setPanel(null)}/>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WelcomeForm({ user, onComplete }) {
+  const suggested = user.user_metadata && user.user_metadata.full_name
+    ? user.user_metadata.full_name
+    : user.email.split("@")[0].replace(".", " ");
+  const [name, setName]     = React.useState(suggested);
+  const [classe, setClasse] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr]       = React.useState("");
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setErr("Inserisci il tuo nome."); return; }
+    if (!classe) { setErr("Seleziona la tua classe."); return; }
+    setSaving(true);
+    const result = await supabase.from("student_profiles").insert({email: user.email, display_name: name.trim(), classe}).select().single();
+    if (result.error) { setErr("Errore nel salvataggio. Riprova."); setSaving(false); return; }
+    onComplete(result.data);
+  };
+
+  const inp = {border:"1.5px solid #ccddd4",borderRadius:7,padding:"9px 12px",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"Georgia,serif",background:"#fafdfb"};
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f4f9f5",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{background:"white",borderRadius:16,padding:"44px 40px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)",maxWidth:420,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:48,marginBottom:12}}>🌱</div>
+          <h1 style={{fontFamily:"Georgia,serif",color:"#0d3d25",fontSize:22,margin:"0 0 8px"}}>Benvenuto nel Giardino</h1>
+          <p style={{color:"#778a7f",fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.6,margin:0}}>
+            Prima di iniziare, dimmi come ti chiami e in quale classe sei.
+          </p>
+        </div>
+        {err && <div style={{background:"#fff0f0",color:"#b00",padding:"8px 12px",borderRadius:7,fontSize:12,marginBottom:16,border:"1px solid #f0b0b0"}}>{err}</div>}
+        <div style={G.col({gap:16})}>
+          <div style={G.col({gap:5})}>
+            <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Nome e cognome</label>
+            <input value={name} onChange={e=>setName(e.target.value)} style={inp} placeholder="Es. Marco Rossi"/>
+          </div>
+          <div style={G.col({gap:5})}>
+            <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Classe</label>
+            <div style={G.row({gap:8})}>
+              {CLASSI.map(cl => {
+                const colors = {"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"};
+                const c = colors[cl];
+                const sel = classe === cl;
+                return (
+                  <button key={cl} onClick={() => setClasse(cl)} style={{flex:1,cursor:"pointer",border:"1.5px solid "+c,borderRadius:8,padding:"10px 0",fontSize:14,fontWeight:700,fontFamily:"Georgia,serif",background:sel?c:"white",color:sel?"white":c}}>
+                    {cl}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button onClick={handleSubmit} disabled={saving} style={{cursor:saving?"not-allowed":"pointer",background:"#1e6b45",color:"white",border:"none",borderRadius:8,padding:"12px 0",fontSize:14,fontWeight:700,fontFamily:"Georgia,serif",marginTop:8,opacity:saving?0.7:1}}>
+            {saving ? "Salvataggio..." : "Entra nel giardino"}
+          </button>
+        </div>
+        <p style={{fontSize:10,color:"#b0c0b8",marginTop:16,textAlign:"center",fontFamily:"Georgia,serif"}}>{user.email}</p>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [session, setSession]       = React.useState(null);
+  const [profile, setProfile]       = React.useState(null);
+  const [needsSetup, setNeedsSetup] = React.useState(false);
+  const [loading, setLoading]       = React.useState(true);
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(result => {
+      const session = result.data.session;
+      setSession(session);
+      if (session) { loadProfile(session.user); } else { setLoading(false); }
+    });
+    const sub = supabase.auth.onAuthStateChange((_, session) => {
+      setSession(session);
+      if (session) { loadProfile(session.user); } else { setProfile(null); setNeedsSetup(false); setLoading(false); }
+    });
+    return () => sub.data.subscription.unsubscribe();
+  }, []);
+
+  const loadProfile = async user => {
+    setLoading(true);
+    if (isDocente(user.email)) { setLoading(false); return; }
+    const result = await supabase.from("student_profiles").select("*").eq("email", user.email).single();
+    if (result.data) { setProfile(result.data); setNeedsSetup(false); } else { setNeedsSetup(true); }
+    setLoading(false);
+  };
+
+  const handleWelcomeComplete = profileData => { setProfile(profileData); setNeedsSetup(false); };
+  const signOut = async () => { await supabase.auth.signOut(); };
+
+  if (loading) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}>
+        <Spinner/> Caricamento...
+        <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      </div>
+    );
+  }
+
+  if (!session) return <LoginPage/>;
+
+  const user = session.user;
+  if (isDocente(user.email)) return <TeacherView user={user} onSignOut={signOut}/>;
+  if (needsSetup) return <WelcomeForm user={user} onComplete={handleWelcomeComplete}/>;
+  if (profile) return <StudentView user={user} profile={profile} onSignOut={signOut}/>;
+
+  return <div style={{padding:40,fontFamily:"Georgia,serif",color:"#c00"}}>Errore nel caricamento del profilo. Ricarica la pagina.</div>;
+}
+
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+</body>
+</html>
