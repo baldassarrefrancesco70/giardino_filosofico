@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giardino Filosofico</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 90%; }
+    body { font-family: system-ui, sans-serif; background: #f4f9f5; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPABASE_URL = "https://qybeutztcvasdxkgqfss.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5YmV1dHp0Y3Zhc2R4a2dxZnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDA0NTcsImV4cCI6MjA5NDQ3NjQ1N30.D7IYrie19sC-CLg_D3vlPJnntWF0MIrKZcyBIb_yKAE";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STATUS = {
+  seme:      { emoji:"🌱", color:"#6db87a", dark:"#3a7a4a", bg:"#f0faf2", label:"Seme" },
+  germoglio: { emoji:"🌿", color:"#3a9e6f", dark:"#1f6644", bg:"#e6f5ed", label:"Germoglio" },
+  pianta:    { emoji:"🌳", color:"#1e6b45", dark:"#0d3d25", bg:"#d2eadb", label:"Pianta" },
+};
+const S_ORDER = ["seme","germoglio","pianta"];
+const fmtDate = iso => iso ? new Date(iso).toLocaleDateString("it-IT",{day:"2-digit",month:"short",year:"numeric"}) : "";
+const G = {
+  col:(v={})=>({display:"flex",flexDirection:"column",...v}),
+  row:(v={})=>({display:"flex",flexDirection:"row",...v}),
+};
+
+function Badge({ status, lg }) {
+  const s = STATUS[status];
+  return <span style={{background:s.bg,color:s.dark,border:`1.5px solid ${s.color}`,borderRadius:99,padding:lg?"4px 13px":"2px 9px",fontSize:lg?12:10,fontWeight:700,whiteSpace:"nowrap",letterSpacing:0.3,fontFamily:"Georgia,serif"}}>{s.emoji} {s.label}</span>;
+}
+
+function Spinner() {
+  return <div style={{width:20,height:20,border:"2px solid #d2eadb",borderTop:"2px solid #1e6b45",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>;
+}
+
+function Graph({ notes, selectedId, onSelect }) {
+  const svgRef = React.useRef(null);
+  const [pos,setPos] = React.useState({});
+  const dragging = React.useRef(null);
+  const offset = React.useRef({x:0,y:0});
+
+  React.useEffect(()=>{
+    if(!notes.length) return;
+    const W=560,H=370,cx=W/2,cy=H/2,r=Math.min(cx,cy)-60;
+    const p={};
+    notes.forEach((n,i)=>{ const a=(2*Math.PI*i/notes.length)-Math.PI/2; p[n.id]={x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)}; });
+    setPos(p);
+  },[notes.map(n=>n.id).join(",")]);
+
+  const onMD = React.useCallback((e,id)=>{ e.preventDefault(); const r=svgRef.current.getBoundingClientRect(); offset.current={x:e.clientX-r.left-(pos[id]?.x||0),y:e.clientY-r.top-(pos[id]?.y||0)}; dragging.current=id; },[pos]);
+  const onMM = React.useCallback((e)=>{ if(!dragging.current) return; const r=svgRef.current.getBoundingClientRect(); setPos(p=>({...p,[dragging.current]:{x:Math.max(30,Math.min(530,e.clientX-r.left-offset.current.x)),y:Math.max(30,Math.min(340,e.clientY-r.top-offset.current.y))}})); },[]);
+  const onMU = React.useCallback(()=>{ dragging.current=null; },[]);
+
+  const edges=[]; const seen=new Set();
+  notes.forEach(n=>(n.links||[]).forEach(lid=>{ const k=[n.id,lid].sort().join("-"); if(!seen.has(k)&&pos[n.id]&&pos[lid]){seen.add(k);edges.push([n.id,lid]);} }));
+
+  return (
+    <svg ref={svgRef} width="100%" viewBox="0 0 560 370"
+      style={{background:"#f7fbf8",borderRadius:14,border:"1.5px solid #c8e6d0",userSelect:"none"}}
+      onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}>
+      <defs><filter id="glow"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      {edges.map(([a,b])=>{ const pa=pos[a],pb=pos[b]; if(!pa||!pb) return null; return <line key={a+b} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#6db87a" strokeWidth={1.5} strokeOpacity={0.45} strokeDasharray="5 4"/>; })}
+      {notes.map(n=>{ const p=pos[n.id]; if(!p) return null; const s=STATUS[n.status],sel=n.id===selectedId,nr=sel?24:19;
+        return (
+          <g key={n.id} transform={`translate(${p.x},${p.y})`} style={{cursor:"pointer"}} onMouseDown={e=>onMD(e,n.id)} onClick={()=>onSelect(n)}>
+            {sel&&<circle r={nr+6} fill={s.color} fillOpacity={0.15}/>}
+            <circle r={nr} fill={s.color} fillOpacity={sel?1:0.82} stroke={sel?s.dark:s.color} strokeWidth={sel?2.5:1.5} filter={sel?"url(#glow)":undefined}/>
+            <text textAnchor="middle" dy="0.38em" fontSize={sel?17:14} pointerEvents="none">{s.emoji}</text>
+            <text textAnchor="middle" dy={nr+13} fontSize={8.5} fill="#2a4a32" fontWeight={sel?700:500} fontFamily="Georgia,serif" pointerEvents="none">{n.title.length>22?n.title.slice(0,20)+"…":n.title}</text>
+          </g>
+        );
+      })}
+      {!notes.length&&<text x="280" y="185" textAnchor="middle" fill="#b0c8b8" fontSize={13} fontFamily="Georgia,serif">Nessuna nota ancora</text>}
+    </svg>
+  );
+}
+
+function Stats({ notes }) {
+  const c={seme:0,germoglio:0,pianta:0};
+  notes.forEach(n=>{if(c[n.status]!==undefined)c[n.status]++;});
+  const links=Math.round(notes.reduce((a,n)=>a+(n.links?.length||0),0)/2);
+  return (
+    <div style={G.row({gap:8,flexWrap:"wrap"})}>
+      {S_ORDER.map(s=>(
+        <div key={s} style={{background:STATUS[s].bg,border:`1.5px solid ${STATUS[s].color}`,borderRadius:10,padding:"7px 14px",textAlign:"center",flex:1,minWidth:58}}>
+          <div style={{fontSize:20}}>{STATUS[s].emoji}</div>
+          <div style={{fontSize:22,fontWeight:700,color:STATUS[s].dark,fontFamily:"Georgia,serif"}}>{c[s]}</div>
+          <div style={{fontSize:9,color:"#558060",letterSpacing:0.4,textTransform:"uppercase"}}>{STATUS[s].label}</div>
+        </div>
+      ))}
+      <div style={{background:"#eef2ff",border:"1.5px solid #a0aee8",borderRadius:10,padding:"7px 14px",textAlign:"center",flex:1,minWidth:58}}>
+        <div style={{fontSize:20}}>🔗</div>
+        <div style={{fontSize:22,fontWeight:700,color:"#3a50c0",fontFamily:"Georgia,serif"}}>{links}</div>
+        <div style={{fontSize:9,color:"#5060a0",letterSpacing:0.4,textTransform:"uppercase"}}>Connessioni</div>
+      </div>
+    </div>
+  );
+}
+
+function NoteDetail({ note, allNotes, onClose }) {
+  const linked  = allNotes.filter(n=>(note.links||[]).includes(n.id));
+  const linkedBy = allNotes.filter(n=>(n.links||[]).includes(note.id)&&!(note.links||[]).includes(n.id));
+  return (
+    <div style={G.col({gap:14})}>
+      <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:8})}>
+        <div>
+          <h3 style={{margin:"0 0 4px",color:"#0d3d25",fontSize:16,fontFamily:"Georgia,serif",lineHeight:1.3}}>{note.title}</h3>
+          {note.author&&<div style={{color:"#778a7f",fontSize:12,fontStyle:"italic"}}>{note.author}</div>}
+        </div>
+        <div style={G.row({gap:6,alignItems:"center",flexShrink:0})}>
+          <Badge status={note.status} lg/>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#aaa",lineHeight:1}}>×</button>
+        </div>
+      </div>
+      <div style={{fontSize:13,lineHeight:1.8,color:"#2a3a30",background:"#f7fbf8",padding:"12px 14px",borderRadius:9,borderLeft:"3px solid #6db87a",fontFamily:"Georgia,serif"}}>
+        {note.text||<em style={{color:"#aaa"}}>Nessun testo.</em>}
+      </div>
+      {(linked.length>0||linkedBy.length>0)&&(
+        <div style={G.col({gap:6})}>
+          <div style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Connessioni</div>
+          <div style={G.row({flexWrap:"wrap",gap:5})}>
+            {linked.map(n=><span key={n.id} style={{fontSize:10,padding:"3px 9px",borderRadius:99,background:STATUS[n.status].bg,color:STATUS[n.status].dark,border:`1.5px solid ${STATUS[n.status].color}`,fontFamily:"Georgia,serif"}}>→ {STATUS[n.status].emoji} {n.title}</span>)}
+            {linkedBy.map(n=><span key={n.id} style={{fontSize:10,padding:"3px 9px",borderRadius:99,background:"#f2f2f2",color:"#888",border:"1.5px solid #ddd",fontFamily:"Georgia,serif"}}>← {STATUS[n.status].emoji} {n.title}</span>)}
+          </div>
+        </div>
+      )}
+      <div style={{fontSize:10,color:"#a0b0a8",fontFamily:"Georgia,serif"}}>Creata: {fmtDate(note.created_at)} · Aggiornata: {fmtDate(note.updated_at)}</div>
+    </div>
+  );
+}
+
+function PublicGarden() {
+  const [notes, setNotes] = React.useState([]);
+  const [profile, setProfile] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [view, setView] = React.useState("lista");
+  const [sel, setSel] = React.useState(null);
+  const [filter, setFilter] = React.useState("all");
+
+  React.useEffect(()=>{
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token) { setError("Link non valido."); setLoading(false); return; }
+    loadGarden(token);
+  },[]);
+
+  const loadGarden = async (token) => {
+    const { data: prof } = await supabase
+      .from("student_profiles")
+      .select("*")
+      .eq("garden_public_token", token)
+      .single();
+
+    if (!prof) { setError("Giardino non trovato o link non più valido."); setLoading(false); return; }
+
+    const { data: noteData } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("student_email", prof.email)
+      .order("created_at");
+
+    setProfile(prof);
+    setNotes(noteData||[]);
+    setLoading(false);
+  };
+
+  const filtered = filter==="all" ? notes : notes.filter(n=>n.status===filter);
+
+  if (loading) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}>
+      <Spinner/> Caricamento…
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Georgia,serif",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:48}}>🌿</div>
+      <div style={{fontSize:16,color:"#778a7f"}}>{error}</div>
+    </div>
+  );
+
+  return (
+    <div style={G.col({minHeight:"100vh",background:"#f4f9f5",fontFamily:"system-ui,sans-serif"})}>
+      {/* Header */}
+      <div style={{background:"white",borderBottom:"1.5px solid #d2eadb",padding:"13px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+        <div>
+          <div style={{fontWeight:700,color:"#0d3d25",fontSize:17,fontFamily:"Georgia,serif"}}>🌿 Giardino Filosofico</div>
+          <div style={{fontSize:11,color:"#90a89a",marginTop:1}}>{profile.display_name} · Classe {profile.classe}</div>
+        </div>
+        <div style={{background:"#f0faf2",border:"1.5px solid #6db87a",borderRadius:7,padding:"5px 12px",fontSize:11,color:"#3a7a4a",fontFamily:"Georgia,serif"}}>
+          👁 Sola lettura
+        </div>
+      </div>
+
+      <div style={G.row({flex:1,overflow:"hidden"})}>
+        <div style={G.col({flex:1,overflow:"hidden"})}>
+          {/* Toolbar */}
+          <div style={{background:"white",borderBottom:"1px solid #e6f0e8",padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={G.row()}>
+              {["lista","grafo"].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 16px",border:"1.5px solid #c8e6d0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Georgia,serif",background:view===v?"#1e6b45":"white",color:view===v?"white":"#558060",borderRadius:v==="lista"?"7px 0 0 7px":"0 7px 7px 0"}}>{v==="lista"?"📋 Lista":"🕸 Grafo"}</button>)}
+            </div>
+            <div style={G.row({gap:5})}>
+              {["all",...S_ORDER].map(s=><button key={s} onClick={()=>setFilter(s)} style={{fontSize:10,padding:"3px 10px",borderRadius:99,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:700,border:`1.5px solid ${s==="all"?"#b0ccb8":STATUS[s].color}`,background:filter===s?(s==="all"?"#1e6b45":STATUS[s].color):"white",color:filter===s?"white":s==="all"?"#558060":STATUS[s].dark}}>{s==="all"?"Tutte":`${STATUS[s].emoji} ${STATUS[s].label}`}</button>)}
+            </div>
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:16}}>
+            {view==="lista" ? (
+              <div style={G.col({gap:10})}>
+                <Stats notes={notes}/>
+                <div style={G.col({gap:8,marginTop:4})}>
+                  {filtered.length===0
+                    ? <div style={{textAlign:"center",color:"#b0c8b8",marginTop:48,fontFamily:"Georgia,serif",fontSize:14}}>Nessuna nota in questa categoria.</div>
+                    : filtered.map(n=>(
+                      <div key={n.id} onClick={()=>setSel(sel?.id===n.id?null:n)}
+                        style={{background:sel?.id===n.id?"#e6f5ed":"white",border:`1.5px solid ${sel?.id===n.id?"#3a9e6f":"#dceade"}`,borderRadius:11,padding:"11px 15px",cursor:"pointer"}}>
+                        <div style={G.row({justifyContent:"space-between",alignItems:"flex-start",gap:10})}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:700,fontSize:13,color:"#0d3d25",fontFamily:"Georgia,serif",marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{n.title}</div>
+                            {n.author&&<div style={{fontSize:11,color:"#90a89a",marginBottom:4,fontStyle:"italic"}}>{n.author}</div>}
+                            <div style={{fontSize:11,color:"#4a6050",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.6,fontFamily:"Georgia,serif"}}>{n.text||<em style={{color:"#c0d0c8"}}>Nessun testo</em>}</div>
+                          </div>
+                          <Badge status={n.status}/>
+                        </div>
+                        {(n.links||[]).length>0&&<div style={{marginTop:6,fontSize:10,color:"#3a9e6f",fontFamily:"Georgia,serif"}}>🔗 {n.links.length} {n.links.length===1?"connessione":"connessioni"}</div>}
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            ) : (
+              <Graph notes={filtered} selectedId={sel?.id} onSelect={n=>setSel(sel?.id===n.id?null:n)}/>
+            )}
+          </div>
+        </div>
+
+        {sel&&(
+          <div style={{width:370,background:"white",borderLeft:"1.5px solid #d2eadb",padding:20,overflowY:"auto",flexShrink:0}}>
+            <NoteDetail note={sel} allNotes={notes} onClose={()=>setSel(null)}/>
+          </div>
+        )}
+      </div>
+
+      <div style={{background:"white",borderTop:"1px solid #e6f0e8",padding:"8px 20px",textAlign:"center",fontSize:10,color:"#b0c8b8",fontFamily:"Georgia,serif"}}>
+        Liceo Classico G.B. Vico · Chieti · Giardino Filosofico
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+ReactDOM.render(<PublicGarden/>, document.getElementById("root"));
+</script>
+</body>
+</html>
