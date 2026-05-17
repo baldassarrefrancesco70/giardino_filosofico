@@ -657,18 +657,20 @@ function TeacherView({ user, onSignOut }) {
 
   const saveNoteFB = async (noteId, fb) => {
     const full = {...fb, note_id:noteId, teacher_email:user.email};
-    const { data } = full.created_at
-      ? await supabase.from("note_feedback").update(full).eq("id",full.id).select().single()
-      : await supabase.from("note_feedback").insert(full).select().single();
+    const isNew = !noteFeedbacks.some(f=>f.note_id===noteId);
+    const { data } = isNew
+      ? await supabase.from("note_feedback").insert(full).select().single()
+      : await supabase.from("note_feedback").update({text:full.text,published:full.published,updated_at:today()}).eq("id",full.id).select().single();
     if (data) setNoteFeedbacks(fs=>fs.find(f=>f.note_id===noteId)?fs.map(f=>f.note_id===noteId?data:f):[...fs,data]);
     setPanel(null);
   };
 
   const saveGardenFB = async (email, fb) => {
     const full = {...fb, student_email:email, teacher_email:user.email};
-    const { data } = full.created_at
-      ? await supabase.from("garden_feedback").update(full).eq("id",full.id).select().single()
-      : await supabase.from("garden_feedback").insert(full).select().single();
+    const isNew = !gardenFeedbacks.some(f=>f.student_email===email);
+    const { data } = isNew
+      ? await supabase.from("garden_feedback").insert(full).select().single()
+      : await supabase.from("garden_feedback").update({text:full.text,published:full.published,updated_at:today()}).eq("id",full.id).select().single();
     if (data) setGardenFeedbacks(fs=>fs.find(f=>f.student_email===email)?fs.map(f=>f.student_email===email?data:f):[...fs,data]);
     setPanel(null);
   };
