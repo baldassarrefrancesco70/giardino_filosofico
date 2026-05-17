@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 87.5%; }
     body { font-family: system-ui, sans-serif; background: #f4f9f5; }
     input, textarea, button { font-family: inherit; }
   </style>
@@ -440,8 +441,11 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
           <div style={{fontSize:11,color:"#90a89a",marginTop:1}}>{profile.display_name} · {profile.classe}</div>
         </div>
         <div style={G.row({gap:7,flexWrap:"wrap"})}>
-          <Btn onClick={()=>doExport(false)} variant="outline" style={{fontSize:11}}>📄 Esporta tutto</Btn>
-          <Btn onClick={()=>doExport(true)}  variant="outline" style={{fontSize:11}}>🌳 Solo piante</Btn>
+          <div style={{display:"flex",alignItems:"center",border:"1.5px solid #1e6b45",borderRadius:7,overflow:"hidden"}}>
+            <span style={{padding:"5px 8px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0",whiteSpace:"nowrap"}}>📄 Esporta</span>
+            <button onClick={()=>doExport(false)} style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45",borderRight:"1px solid #c8e6d0"}}>Tutto</button>
+            <button onClick={()=>doExport(true)}  style={{cursor:"pointer",background:"white",border:"none",padding:"5px 10px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif",color:"#1e6b45"}}>🌳 Piante</button>
+          </div>
           <Btn onClick={()=>setPanel({mode:"settings"})} variant="outline" style={{fontSize:11}}>⚙ Giardino</Btn>
           <Btn onClick={()=>setPanel({mode:"edit",note:{}})}>+ Nuova nota</Btn>
           <Btn onClick={onSignOut} variant="ghost" style={{fontSize:11}}>Esci</Btn>
