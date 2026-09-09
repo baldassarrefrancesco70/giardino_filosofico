@@ -15,7 +15,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc,
       deleteDoc, query, where, orderBy, serverTimestamp }
@@ -39,7 +39,7 @@
 
     window.__firebase = {
       auth, db, provider,
-      GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+      GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
       collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
       query, where, orderBy, serverTimestamp
     };
@@ -220,7 +220,12 @@ function LoginPage({ onLogin }) {
   const handleLogin = async () => {
     setLoading(true); setError("");
     try {
-      await FB.signInWithRedirect(FB.auth, FB.provider);
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        await FB.signInWithRedirect(FB.auth, FB.provider);
+      } else {
+        await FB.signInWithPopup(FB.auth, FB.provider);
+      }
     } catch(e) {
       setError("Accesso non riuscito. Usa il tuo account scolastico.");
       setLoading(false);
