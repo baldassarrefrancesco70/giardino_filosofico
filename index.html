@@ -1036,10 +1036,15 @@ function App() {
 }
 
 // Aspetta che Firebase sia pronto prima di renderizzare
-window.addEventListener("firebase-ready", ()=>{
-  FB = window.__firebase;
-  ReactDOM.render(<App/>, document.getElementById("root"));
-});
+function waitForFirebase() {
+  if (window.__firebase) {
+    FB = window.__firebase;
+    ReactDOM.render(<App/>, document.getElementById("root"));
+  } else {
+    setTimeout(waitForFirebase, 50);
+  }
+}
+waitForFirebase();
 
 </script>
 <script>
