@@ -15,7 +15,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc,
       deleteDoc, query, where, orderBy, serverTimestamp }
@@ -39,7 +39,7 @@
 
     window.__firebase = {
       auth, db, provider,
-      GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+      GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
       collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
       query, where, orderBy, serverTimestamp
     };
@@ -220,7 +220,7 @@ function LoginPage({ onLogin }) {
   const handleLogin = async () => {
     setLoading(true); setError("");
     try {
-      await FB.signInWithPopup(FB.auth, FB.provider);
+      await FB.signInWithRedirect(FB.auth, FB.provider);
     } catch(e) {
       setError("Accesso non riuscito. Usa il tuo account scolastico.");
       setLoading(false);
@@ -1003,13 +1003,32 @@ function TeacherView({ user, onSignOut }) {
 // ═══ APP ROOT ═══
 
 function App() {
+  const [fbReady, setFbReady]    = React.useState(false);
   const [user,setUser]           = React.useState(null);
   const [profile,setProfile]     = React.useState(null);
   const [needsSetup,setNeedsSetup] = React.useState(false);
   const [loading,setLoading]     = React.useState(true);
 
+  // Aspetta Firebase
   React.useEffect(()=>{
-    FB.onAuthStateChanged(FB.auth, async firebaseUser=>{
+    const check = () => {
+      if (window.__firebase) {
+        FB = window.__firebase;
+        setFbReady(true);
+      } else {
+        setTimeout(check, 50);
+      }
+    };
+    check();
+  }, []);
+
+  // Quando Firebase è pronto, avvia onAuthStateChanged
+  React.useEffect(()=>{
+    if (!fbReady) return;
+
+    FB.getRedirectResult(FB.auth).catch(()=>{});
+
+    const unsub = FB.onAuthStateChanged(FB.auth, async firebaseUser=>{
       if(firebaseUser){
         setUser(firebaseUser);
         if(!isDocente(firebaseUser.email)){
@@ -1022,12 +1041,13 @@ function App() {
       }
       setLoading(false);
     });
-  },[]);
+    return () => unsub();
+  }, [fbReady]);
 
   const handleWelcomeComplete=p=>{setProfile(p);setNeedsSetup(false);};
   const signOut=()=>FB.signOut(FB.auth);
 
-  if(loading){return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}><Spinner/> Caricamento...<style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>);}
+  if(!fbReady||loading){return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}><Spinner/> Caricamento...<style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>);}
   if(!user) return <LoginPage/>;
   if(isDocente(user.email)) return <TeacherView user={user} onSignOut={signOut}/>;
   if(needsSetup) return <WelcomeForm user={user} onComplete={handleWelcomeComplete}/>;
@@ -1035,16 +1055,7 @@ function App() {
   return <div style={{padding:40,fontFamily:"Georgia,serif",color:"#c00"}}>Errore nel caricamento. Ricarica la pagina.</div>;
 }
 
-// Aspetta che Firebase sia pronto prima di renderizzare
-function waitForFirebase() {
-  if (window.__firebase) {
-    FB = window.__firebase;
-    ReactDOM.render(<App/>, document.getElementById("root"));
-  } else {
-    setTimeout(waitForFirebase, 50);
-  }
-}
-waitForFirebase();
+ReactDOM.render(<App/>, document.getElementById("root"));
 
 </script>
 <script>
