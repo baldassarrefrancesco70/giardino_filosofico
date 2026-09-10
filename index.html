@@ -35,7 +35,7 @@
     const db   = getFirestore(app);
 
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ hd: "convittogbvico.edu.it" });
+    provider.setCustomParameters({ hd: "convittogbvico.edu.it", prompt: "select_account" });
 
     window.__firebase = {
       auth, db, provider,
