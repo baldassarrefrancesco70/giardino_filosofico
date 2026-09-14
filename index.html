@@ -44,6 +44,12 @@
       query, where, orderBy, serverTimestamp
     };
     window.dispatchEvent(new Event("firebase-ready"));
+
+    getRedirectResult(auth).then(result => {
+      if (result && result.user) {
+        window.__redirectUser = result.user;
+      }
+    }).catch(()=>{});
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1030,8 +1036,6 @@ function App() {
   // Quando Firebase è pronto, avvia onAuthStateChanged
   React.useEffect(()=>{
     if (!fbReady) return;
-
-    FB.getRedirectResult(FB.auth).catch(()=>{});
 
     const unsub = FB.onAuthStateChanged(FB.auth, async firebaseUser=>{
       if(firebaseUser){
