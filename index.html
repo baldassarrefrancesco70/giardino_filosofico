@@ -521,9 +521,15 @@ function WelcomeForm({ user, onComplete }) {
     if(!name.trim()){setErr("Inserisci il tuo nome.");return;}
     if(!classe){setErr("Seleziona la tua classe.");return;}
     setSaving(true);
+    setErr("");
     const profile = {email:user.email,display_name:name.trim(),classe,garden_public_token:null,created_at:new Date().toISOString()};
-    await saveProfile(user.email, profile);
-    onComplete(profile);
+    try {
+      await saveProfile(user.email, profile);
+      onComplete(profile);
+    } catch(e) {
+      setErr("Salvataggio non riuscito. Controlla la connessione e riprova.");
+      setSaving(false);
+    }
   };
 
   const inp={border:"1.5px solid #ccddd4",borderRadius:7,padding:"9px 12px",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"Georgia,serif",background:"#fafdfb"};
@@ -577,11 +583,14 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
 
   const loadData=async()=>{
     setLoading(true);
-    const [n,nf,gf]=await Promise.all([getNotes(user.email),getNoteFeedbacks(),getGardenFeedbacks()]);
-    setNotes(n);
-    setNF(nf.filter(f=>f.published));
-    setGF(gf.filter(f=>f.student_email===user.email&&f.published));
-    setLoading(false);
+    try {
+      const [n,nf,gf]=await Promise.all([getNotes(user.email),getNoteFeedbacks(),getGardenFeedbacks()]);
+      setNotes(n);
+      setNF(nf.filter(f=>f.published));
+      setGF(gf.filter(f=>f.student_email===user.email&&f.published));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveNote=async note=>{
@@ -869,11 +878,14 @@ function TeacherView({ user, onSignOut }) {
 
   const loadAll=async()=>{
     setLoading(true);
-    const [profiles,allNotes,nf,gf]=await Promise.all([getAllProfiles(),getAllNotes(),getNoteFeedbacks(),getGardenFeedbacks()]);
-    const sorted=profiles.sort((a,b)=>a.classe.localeCompare(b.classe)||a.display_name.localeCompare(b.display_name));
-    setStudents(sorted.map(p=>({...p,notes:allNotes.filter(n=>n.student_email===p.email)})));
-    setNF(nf); setGF(gf);
-    setLoading(false);
+    try {
+      const [profiles,allNotes,nf,gf]=await Promise.all([getAllProfiles(),getAllNotes(),getNoteFeedbacks(),getGardenFeedbacks()]);
+      const sorted=profiles.sort((a,b)=>a.classe.localeCompare(b.classe)||a.display_name.localeCompare(b.display_name));
+      setStudents(sorted.map(p=>({...p,notes:allNotes.filter(n=>n.student_email===p.email)})));
+      setNF(nf); setGF(gf);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const st=students.find(s=>s.email===selStudent);
@@ -1038,17 +1050,20 @@ function App() {
     // Aspetta che il redirect sia processato, poi ascolta i cambiamenti di auth
     FB.redirectPromise.then(() => {
       const unsub = FB.onAuthStateChanged(FB.auth, async firebaseUser=>{
-        if(firebaseUser){
-          setUser(firebaseUser);
-          if(!isDocente(firebaseUser.email)){
-            const p=await getProfile(firebaseUser.email);
-            if(p){setProfile(p);setNeedsSetup(false);}
-            else{setNeedsSetup(true);}
+        try {
+          if(firebaseUser){
+            setUser(firebaseUser);
+            if(!isDocente(firebaseUser.email)){
+              const p=await getProfile(firebaseUser.email);
+              if(p){setProfile(p);setNeedsSetup(false);}
+              else{setNeedsSetup(true);}
+            }
+          } else {
+            setUser(null); setProfile(null); setNeedsSetup(false);
           }
-        } else {
-          setUser(null); setProfile(null); setNeedsSetup(false);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       });
       return unsub;
     }).catch(() => { setLoading(false); });
