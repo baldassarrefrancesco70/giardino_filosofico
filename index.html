@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Giardino Filosofico</title>
-  <link rel="manifest" href="/giardino_filosofico/manifest.json">
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1e6b45">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Giardino">
-  <link rel="apple-touch-icon" href="/giardino_filosofico/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -489,7 +489,7 @@ function GardenSettings({ profile, onToggleGardenShare, onClose }) {
         <div style={{fontSize:12,color:"#5a4a80",lineHeight:1.6,fontFamily:"Georgia,serif",marginBottom:10}}>Chi ha il link puo vedere tutte le tue note in sola lettura, senza bisogno di account.</div>
         {profile.garden_public_token?(
           <div style={G.col({gap:7})}>
-            <CopyLink url={"https://baldassarrefrancesco70.github.io/giardino_filosofico/public/?token="+profile.garden_public_token}/>
+            <CopyLink url={"https://giardino-filosofico.web.app/public/?token="+profile.garden_public_token}/>
             <Btn onClick={onToggleGardenShare} variant="unshare" style={{fontSize:11}}>Revoca link</Btn>
           </div>
         ):(
@@ -1071,7 +1071,7 @@ ReactDOM.render(<App/>, document.getElementById("root"));
 <script>
   if("serviceWorker" in navigator){
     window.addEventListener("load",function(){
-      navigator.serviceWorker.register("/giardino_filosofico/service-worker.js")
+      navigator.serviceWorker.register("/service-worker.js")
         .catch(function(err){console.log("SW:",err);});
     });
   }

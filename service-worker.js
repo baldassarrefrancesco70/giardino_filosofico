@@ -2,8 +2,8 @@ const CACHE_NAME = "giardino-filosofico-v1";
 
 // File da mettere in cache per uso offline
 const STATIC_ASSETS = [
-  "/giardino_filosofico/",
-  "/giardino_filosofico/index.html",
+  "/",
+  "/index.html",
   "https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js",
@@ -54,7 +54,7 @@ self.addEventListener("fetch", event => {
         return caches.match(event.request).then(cached => {
           if (cached) return cached;
           // Se non c'è neanche la cache, mostra la pagina principale
-          return caches.match("/giardino_filosofico/index.html");
+          return caches.match("/index.html");
         });
       })
   );
