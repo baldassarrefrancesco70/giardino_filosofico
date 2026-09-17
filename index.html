@@ -1025,19 +1025,23 @@ function TeacherView({ user, onSignOut }) {
 
 function App() {
   const [fbReady, setFbReady]    = React.useState(false);
+  const [fbError, setFbError]    = React.useState(false);
   const [user,setUser]           = React.useState(null);
   const [profile,setProfile]     = React.useState(null);
   const [needsSetup,setNeedsSetup] = React.useState(false);
   const [loading,setLoading]     = React.useState(true);
 
-  // Aspetta Firebase
+  // Aspetta Firebase (si arrende dopo 10s per non restare bloccati all'infinito)
   React.useEffect(()=>{
+    let tries = 0;
     const check = () => {
       if (window.__firebase) {
         FB = window.__firebase;
         setFbReady(true);
-      } else {
+      } else if (tries++ < 200) {
         setTimeout(check, 50);
+      } else {
+        setFbError(true);
       }
     };
     check();
@@ -1072,6 +1076,17 @@ function App() {
   const handleWelcomeComplete=p=>{setProfile(p);setNeedsSetup(false);};
   const signOut=()=>FB.signOut(FB.auth);
 
+  if (fbError) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",padding:20,textAlign:"center",color:"#558060",fontFamily:"Georgia,serif"}}>
+        <div>
+          <p style={{marginBottom:12}}>Impossibile contattare Firebase.</p>
+          <p style={{fontSize:12,color:"#90a89a",marginBottom:16}}>Controlla la connessione o disattiva eventuali blocchi (ad-blocker, tracking protection) per questo sito, poi ricarica la pagina.</p>
+          <button onClick={()=>window.location.reload()} style={{cursor:"pointer",background:"#1e6b45",color:"white",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontFamily:"Georgia,serif",fontWeight:700}}>Ricarica</button>
+        </div>
+      </div>
+    );
+  }
   if(!fbReady||loading){return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}><Spinner/> Caricamento...<style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>);}
   if(!user) return <LoginPage/>;
   if(isDocente(user.email)) return <TeacherView user={user} onSignOut={signOut}/>;
