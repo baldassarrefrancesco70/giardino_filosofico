@@ -1,13 +1,15 @@
-const CACHE_NAME = "giardino-filosofico-v1";
+const CACHE_NAME = "giardino-filosofico-v2";
 
 // File da mettere in cache per uso offline
 const STATIC_ASSETS = [
   "/",
   "/index.html",
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"
 ];
 
 // Installazione: mette in cache i file statici
@@ -35,9 +37,11 @@ self.addEventListener("activate", event => {
 });
 
 // Fetch: network first, poi cache come fallback
+// Intercetta solo GET dello stesso dominio: le chiamate a Firebase Auth/
+// Firestore (POST, cross-origin, spesso long-polling) devono passare dirette.
 self.addEventListener("fetch", event => {
-  // Non intercettare richieste a Supabase — devono sempre andare online
-  if (event.request.url.includes("supabase.co")) return;
+  if (event.request.method !== "GET") return;
+  if (new URL(event.request.url).origin !== self.location.origin && !event.request.url.startsWith("https://cdnjs.cloudflare.com/")) return;
 
   event.respondWith(
     fetch(event.request)
