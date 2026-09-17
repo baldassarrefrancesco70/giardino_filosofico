@@ -61,7 +61,7 @@
 <script type="text/babel">
 
 const DOCENTE_DOMAIN = "docente@convittogbvico.edu.it";
-const CLASSI = ["3A", "3D", "4D"];
+const CLASSI = ["4A", "4D", "5D"];
 
 const STATUS = {
   seme:      { emoji: "🌱", color: "#6db87a", dark: "#3a7a4a", bg: "#f0faf2", label: "Seme" },
@@ -543,7 +543,7 @@ function WelcomeForm({ user, onComplete }) {
             <label style={{fontSize:10,fontWeight:700,color:"#558060",textTransform:"uppercase",letterSpacing:0.5}}>Classe</label>
             <div style={G.row({gap:8})}>
               {CLASSI.map(cl=>{
-                const colors={"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"};
+                const colors={"4A":"#1e6b45","4D":"#1a5276","5D":"#6d4c8e"};
                 const c=colors[cl],sel=classe===cl;
                 return <button key={cl} onClick={()=>setClasse(cl)} style={{flex:1,cursor:"pointer",border:"1.5px solid "+c,borderRadius:8,padding:"10px 0",fontSize:14,fontWeight:700,fontFamily:"Georgia,serif",background:sel?c:"white",color:sel?"white":c}}>{cl}</button>;
               })}
@@ -804,10 +804,10 @@ function FeedbackEditor({ feedback, onSave, onClose, label }) {
 // ═══ SIDEBAR DOCENTE ═══
 
 function TeacherSidebar({ students, gardenFeedbacks, selStudent, onSelect }) {
-  const [open,setOpen]=React.useState({"3A":true,"3D":true,"4D":true});
+  const [open,setOpen]=React.useState({"4A":true,"4D":true,"5D":true});
   const toggle=cl=>setOpen(o=>({...o,[cl]:!o[cl]}));
-  const classeColor={"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"};
-  const classeBg={"3A":"#e8f5ee","3D":"#eaf4fb","4D":"#f3eeff"};
+  const classeColor={"4A":"#1e6b45","4D":"#1a5276","5D":"#6d4c8e"};
+  const classeBg={"4A":"#e8f5ee","4D":"#eaf4fb","5D":"#f3eeff"};
 
   return(
     <div style={{width:250,background:"white",borderRight:"1.5px solid #d2eadb",overflowY:"auto",flexShrink:0}}>
@@ -921,7 +921,7 @@ function TeacherView({ user, onSignOut }) {
                 <div>
                   <div style={G.row({alignItems:"center",gap:10,marginBottom:4})}>
                     <h2 style={{margin:0,color:"#0d3d25",fontFamily:"Georgia,serif",fontSize:20}}>{st.display_name}</h2>
-                    <span style={{background:{"3A":"#1e6b45","3D":"#1a5276","4D":"#6d4c8e"}[st.classe]||"#555",color:"white",borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif"}}>{st.classe}</span>
+                    <span style={{background:{"4A":"#1e6b45","4D":"#1a5276","5D":"#6d4c8e"}[st.classe]||"#555",color:"white",borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,fontFamily:"Georgia,serif"}}>{st.classe}</span>
                   </div>
                   <div style={{fontSize:11,color:"#90a89a",fontStyle:"italic"}}>{st.email}</div>
                 </div>
