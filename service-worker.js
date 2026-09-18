@@ -1,4 +1,4 @@
-const CACHE_NAME = "giardino-filosofico-v2";
+const CACHE_NAME = "giardino-filosofico-v3";
 
 // File da mettere in cache per uso offline
 const STATIC_ASSETS = [
@@ -39,9 +39,12 @@ self.addEventListener("activate", event => {
 // Fetch: network first, poi cache come fallback
 // Intercetta solo GET dello stesso dominio: le chiamate a Firebase Auth/
 // Firestore (POST, cross-origin, spesso long-polling) devono passare dirette.
+const AUTH_URL_PATTERNS = ["/__/auth/", "identitytoolkit", "googleapis", "firestore"];
 self.addEventListener("fetch", event => {
+  const url = event.request.url;
   if (event.request.method !== "GET") return;
-  if (new URL(event.request.url).origin !== self.location.origin && !event.request.url.startsWith("https://cdnjs.cloudflare.com/")) return;
+  if (AUTH_URL_PATTERNS.some(p => url.includes(p))) return;
+  if (new URL(url).origin !== self.location.origin && !url.startsWith("https://cdnjs.cloudflare.com/")) return;
 
   event.respondWith(
     fetch(event.request)
