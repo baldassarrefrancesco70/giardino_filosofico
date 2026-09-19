@@ -667,16 +667,20 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
   const [sel,setSel]           = React.useState(null);
   const [filter,setFilter]     = React.useState("all");
   const [showGF,setShowGF]     = React.useState(true);
+  const [loadError,setLoadError] = React.useState("");
 
   React.useEffect(()=>{loadData();},[]);
 
   const loadData=async()=>{
     setLoading(true);
+    setLoadError("");
     try {
       const [n,nf,gf]=await Promise.all([getNotes(user.email),getNoteFeedbacks(),getGardenFeedbacks()]);
       setNotes(n);
       setNF(nf.filter(f=>f.published));
       setGF(gf.filter(f=>f.student_email===user.email&&f.published));
+    } catch(e) {
+      setLoadError((e && (e.code||e.message)) || "Errore sconosciuto");
     } finally {
       setLoading(false);
     }
@@ -762,6 +766,16 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
   };
 
   if(loading){return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",gap:12,color:"#558060",fontFamily:"Georgia,serif"}}><Spinner/> Caricamento...<style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>);}
+  if(loadError){return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",padding:20,textAlign:"center",fontFamily:"Georgia,serif"}}>
+      <div>
+        <div style={{fontSize:48,marginBottom:12}}>🌿</div>
+        <p style={{color:"#b00",marginBottom:8,fontWeight:700}}>Impossibile caricare il giardino</p>
+        <p style={{fontSize:12,color:"#90a89a",marginBottom:16,fontFamily:"monospace"}}>{loadError}</p>
+        <button onClick={loadData} style={{cursor:"pointer",background:"#1e6b45",color:"white",border:"none",borderRadius:8,padding:"10px 20px",fontSize:13,fontFamily:"Georgia,serif",fontWeight:700}}>Riprova</button>
+      </div>
+    </div>
+  );}
 
   return (
     <div style={G.col({height:"100vh",background:"#f4f9f5",fontFamily:"system-ui,sans-serif"})}>

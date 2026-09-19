@@ -204,7 +204,7 @@ function PublicGarden() {
       setProfile(prof);
       setNotes(noteData);
     } catch(e) {
-      setError("Impossibile caricare il giardino. Riprova più tardi.");
+      setError("Impossibile caricare il giardino: " + ((e && (e.code||e.message)) || "errore sconosciuto"));
     } finally {
       setLoading(false);
     }
