@@ -111,9 +111,10 @@ async function saveProfile(email, data) {
 }
 
 async function getNotes(studentEmail) {
-  const q = FB.query(notesRef(), FB.where("student_email","==",studentEmail), FB.orderBy("created_at"));
+  // Niente orderBy in query: eviterebbe un indice composito Firestore. Si ordina lato client.
+  const q = FB.query(notesRef(), FB.where("student_email","==",studentEmail));
   const snap = await FB.getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.created_at||"").localeCompare(b.created_at||""));
 }
 
 async function getAllNotes() {

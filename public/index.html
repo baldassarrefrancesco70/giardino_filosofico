@@ -7,7 +7,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, query, where, getDocs }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDg-uKcUb1ejtGkOFOWUAxMDCnyoXh0vMM",
+      authDomain: "giardino-filosofico.firebaseapp.com",
+      projectId: "giardino-filosofico",
+      storageBucket: "giardino-filosofico.firebasestorage.app",
+      messagingSenderId: "1030782289711",
+      appId: "1:1030782289711:web:e199dfb0ce23bc0ed843da"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    window.__firebase = { db, collection, query, where, getDocs };
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-size: 90%; }
@@ -19,9 +38,19 @@
 <div id="root"></div>
 <script type="text/babel">
 
-const SUPABASE_URL = "https://qybeutztcvasdxkgqfss.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5YmV1dHp0Y3Zhc2R4a2dxZnNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDA0NTcsImV4cCI6MjA5NDQ3NjQ1N30.D7IYrie19sC-CLg_D3vlPJnntWF0MIrKZcyBIb_yKAE";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let FB = null;
+async function waitForFirebase() {
+  if (window.__firebase) { FB = window.__firebase; return FB; }
+  return new Promise((resolve, reject) => {
+    let tries = 0;
+    const check = () => {
+      if (window.__firebase) { FB = window.__firebase; resolve(FB); }
+      else if (tries++ < 200) setTimeout(check, 50);
+      else reject(new Error("Firebase non disponibile"));
+    };
+    check();
+  });
+}
 
 const STATUS = {
   seme:      { emoji:"🌱", color:"#6db87a", dark:"#3a7a4a", bg:"#f0faf2", label:"Seme" },
@@ -157,23 +186,28 @@ function PublicGarden() {
   },[]);
 
   const loadGarden = async (token) => {
-    const { data: prof } = await supabase
-      .from("student_profiles")
-      .select("*")
-      .eq("garden_public_token", token)
-      .single();
+    try {
+      const F = await waitForFirebase();
 
-    if (!prof) { setError("Giardino non trovato o link non più valido."); setLoading(false); return; }
+      const profQ = F.query(F.collection(F.db, "student_profiles"), F.where("garden_public_token", "==", token));
+      const profSnap = await F.getDocs(profQ);
+      if (profSnap.empty) { setError("Giardino non trovato o link non più valido."); setLoading(false); return; }
+      const prof = { id: profSnap.docs[0].id, ...profSnap.docs[0].data() };
 
-    const { data: noteData } = await supabase
-      .from("notes")
-      .select("*")
-      .eq("student_email", prof.email)
-      .order("created_at");
+      // Niente orderBy in query: eviterebbe un indice composito Firestore. Si ordina lato client.
+      const notesQ = F.query(F.collection(F.db, "notes"), F.where("student_email", "==", prof.email));
+      const notesSnap = await F.getDocs(notesQ);
+      const noteData = notesSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.created_at||"").localeCompare(b.created_at||""));
 
-    setProfile(prof);
-    setNotes(noteData||[]);
-    setLoading(false);
+      setProfile(prof);
+      setNotes(noteData);
+    } catch(e) {
+      setError("Impossibile caricare il giardino. Riprova più tardi.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filtered = filter==="all" ? notes : notes.filter(n=>n.status===filter);
