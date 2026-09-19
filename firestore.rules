@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Profili studenti
+    match /student_profiles/{email} {
+      allow read: if request.auth != null &&
+        (request.auth.token.email == email ||
+         request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it'));
+      allow write: if request.auth != null &&
+        request.auth.token.email == email;
+      // Lettura pubblica tramite token giardino
+      allow read: if resource.data.garden_public_token != null;
+    }
+
+    // Note
+    match /notes/{noteId} {
+      allow read, write: if request.auth != null &&
+        request.auth.token.email == resource.data.student_email;
+      allow create: if request.auth != null &&
+        request.auth.token.email == request.resource.data.student_email;
+      allow read: if request.auth != null &&
+        request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it');
+      // Lettura pubblica: nota di uno studente con link giardino attivo
+      // (sostituisce la vecchia condizione rotta su "public_token", campo
+      // mai presente sulle note: il token vive sul profilo, non sulla nota)
+      allow read: if get(/databases/$(database)/documents/student_profiles/$(resource.data.student_email)).data.garden_public_token != null;
+    }
+
+    // Feedback note
+    match /note_feedback/{feedbackId} {
+      allow read: if request.auth != null &&
+        (request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it') ||
+         resource.data.published == true);
+      allow write: if request.auth != null &&
+        request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it');
+    }
+
+    // Feedback giardino
+    match /garden_feedback/{feedbackId} {
+      allow read: if request.auth != null &&
+        (request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it') ||
+         resource.data.published == true);
+      allow write: if request.auth != null &&
+        request.auth.token.email.matches('.*\\.docente@convittogbvico\\.edu\\.it');
+    }
+  }
+}
