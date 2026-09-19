@@ -139,7 +139,15 @@ async function getAllProfiles() {
 }
 
 async function getNoteFeedbacks() {
+  // Solo docente: le regole richiedono published==true per chiunque altro,
+  // una lettura non filtrata verrebbe rifiutata per intero da Firestore.
   const snap = await FB.getDocs(nfRef());
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getPublishedNoteFeedbacks() {
+  const q = FB.query(nfRef(), FB.where("published","==",true));
+  const snap = await FB.getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
@@ -150,7 +158,14 @@ async function saveNoteFeedback(fb) {
 }
 
 async function getGardenFeedbacks() {
+  // Solo docente: vedi nota su getNoteFeedbacks.
   const snap = await FB.getDocs(gfRef());
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getStudentGardenFeedbacks(email) {
+  const q = FB.query(gfRef(), FB.where("student_email","==",email), FB.where("published","==",true));
+  const snap = await FB.getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
@@ -675,10 +690,10 @@ function StudentView({ user, profile: initialProfile, onSignOut }) {
     setLoading(true);
     setLoadError("");
     try {
-      const [n,nf,gf]=await Promise.all([getNotes(user.email),getNoteFeedbacks(),getGardenFeedbacks()]);
+      const [n,nf,gf]=await Promise.all([getNotes(user.email),getPublishedNoteFeedbacks(),getStudentGardenFeedbacks(user.email)]);
       setNotes(n);
-      setNF(nf.filter(f=>f.published));
-      setGF(gf.filter(f=>f.student_email===user.email&&f.published));
+      setNF(nf);
+      setGF(gf);
     } catch(e) {
       setLoadError((e && (e.code||e.message)) || "Errore sconosciuto");
     } finally {
